@@ -1,36 +1,37 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Secure Group/Personal Chat</title>
+  <title>Neat Secure Chat 🛡️💬</title>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <link rel="stylesheet" href="style.css">
-  <!-- Firebase scripts for browser (CDN) -->
+  <!-- Firebase (CDN) -->
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
 </head>
 <body>
-  <div class="container">
+  <div class="chat-outer">
     <header>
-      <h1>Secure Chat <span class="emoji">🛡️💬</span></h1>
+      <h1><span class="chat-emoji">💬</span> Secure Chat Platform</h1>
     </header>
-    <!-- User Login -->
-    <section id="loginSection">
-      <input type="text" id="myUsername" placeholder="Your username">
-      <button onclick="login()" class="main-btn">Login</button>
-    </section>
-    <!-- Chat Selection -->
-    <section id="userSection" style="display:none;">
-      <select id="chatType">
-        <option value="personal">Personal Chat</option>
-        <option value="group">Group Chat</option>
-      </select>
-      <input type="text" id="chatName" placeholder="Friend's username or group name">
-      <button onclick="openChat()" class="main-btn">Open Chat</button>
-      <div class="chat-tabs" id="chatTabs"></div>
-    </section>
-    <!-- All chat windows -->
-    <div id="chatWindows"></div>
+    <main>
+      <section id="loginSection" class="fadeIn">
+        <h2>👤 Enter Username</h2>
+        <input type="text" id="myUsername" placeholder="Type your username...">
+        <button onclick="login()" class="main-btn">Login</button>
+      </section>
+      <section id="userSection" style="display:none;">
+        <h2 id="chatTitle">➡️ New Chat</h2>
+        <select id="chatType" class="selector" onchange="updateChatOption()">
+          <option value="personal">Personal Chat</option>
+          <option value="group">Group Chat</option>
+        </select>
+        <input type="text" id="chatName" placeholder="Enter friend's username...">
+        <button id="openChatBtn" onclick="openChat()" class="main-btn">Start Personal Chat</button>
+        <div class="chat-tabs" id="chatTabs"></div>
+      </section>
+      <div id="chatWindows"></div>
+    </main>
   </div>
   <script src="app.js"></script>
 </body>

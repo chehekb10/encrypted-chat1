@@ -1,4 +1,4 @@
-// Firebase config (same as before)
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyAXPwge9me10YI38WFSIOQ1Lr-IzKrbUHA",
   authDomain: "pted-chat1.firebaseapp.com",
@@ -15,13 +15,24 @@ const storage = firebase.storage();
 
 let myUsername = "";
 let openChats = [];
-
 const emojiList =
   "😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😜 🤪 😝 😛 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶".split(" ");
 
-function normalize(str) {
-  return str.trim().toLowerCase();
-}
+function normalize(str) { return str.trim().toLowerCase(); }
+
+window.updateChatOption = function() {
+  const chatType = document.getElementById('chatType').value;
+  const chatName = document.getElementById('chatName');
+  const openChatBtn = document.getElementById('openChatBtn');
+  if (chatType === "personal") {
+    chatName.placeholder = "Enter friend's username...";
+    openChatBtn.textContent = "Start Personal Chat";
+  } else {
+    chatName.placeholder = "Enter group name...";
+    openChatBtn.textContent = "Join Group Chat";
+  }
+};
+window.onload = function() { updateChatOption(); };
 
 function login() {
   myUsername = normalize(document.getElementById('myUsername').value);
@@ -34,15 +45,12 @@ function login() {
 function openChat() {
   const chatType = document.getElementById('chatType').value;
   let chatName = normalize(document.getElementById('chatName').value);
-  if (!chatName) return alert("Enter friend's username or group name!");
-  // Personal chat: chatId based on both usernames
-  if (chatType === "personal") {
-    chatName = [myUsername, chatName].sort().join('_');
-  }
+  if (!chatName) return alert(chatType === "personal"
+    ? "Enter friend's username!" : "Enter group name!");
+  if (chatType === "personal") chatName = [myUsername, chatName].sort().join('_');
   if (openChats.includes(chatName)) return switchChat(chatName);
 
   openChats.push(chatName);
-  // Create tab
   const tab = document.createElement('div');
   tab.className = "chat-tab";
   tab.innerText = chatName;
@@ -50,40 +58,42 @@ function openChat() {
   tab.id = `tab-${chatName}`;
   document.getElementById('chatTabs').appendChild(tab);
 
-  // Create chat window
   const chatWin = document.createElement('div');
   chatWin.className = "chat-window";
   chatWin.id = `chat-${chatName}`;
   chatWin.innerHTML = `
-    <div class="chat-header">${chatName}</div>
+    <div class="chat-header"><span style="font-size:1.14em;">${chatName}</span></div>
     <div class="chat-box" id="chatBox-${chatName}"></div>
     <div class="input-row">
       <input type="text" placeholder="Type a message..." id="msgInput-${chatName}">
       <button type="button" class="emoji-btn" onclick="toggleEmojiPicker('${chatName}')">😀</button>
-      <input type="file" accept="image/*" class="img-btn" id="imgInput-${chatName}">
+      <label class="img-upload-label">
+        <span class="img-btn" title="Send Image">🖼️</span>
+        <input type="file" accept="image/*" id="imgInput-${chatName}">
+      </label>
       <button type="button" class="send-btn" onclick="sendMessage('${chatName}')">Send</button>
     </div>
     <div class="emoji-picker" id="emojiPicker-${chatName}" style="display:none;"></div>
+    <div class="progressbar" id="progressbar-${chatName}" style="display:none;">
+      <div class="progressfill" id="progressfill-${chatName}"></div>
+    </div>
   `;
   document.getElementById('chatWindows').appendChild(chatWin);
 
-  // Emoji picker for each chat
   const pickerDiv = document.getElementById(`emojiPicker-${chatName}`);
   emojiList.forEach(e => {
     const btn = document.createElement("button");
     btn.className = "emoji-btn";
     btn.type = "button";
     btn.textContent = e;
-    btn.onclick = function() { insertEmoji(chatName, e); };
+    btn.onclick = function () { insertEmoji(chatName, e); };
     pickerDiv.appendChild(btn);
   });
 
-  // Image upload
-  document.getElementById(`imgInput-${chatName}`).addEventListener('change', function(e) {
+  document.getElementById(`imgInput-${chatName}`).addEventListener('change', function (e) {
     uploadImage(e, chatName);
   });
 
-  // Listen for messages
   db.ref('chats/' + chatName).off();
   db.ref('chats/' + chatName).on('child_added', function(snapshot) {
     showMessage(chatName, snapshot.val());
@@ -101,31 +111,24 @@ function switchChat(chatName) {
   document.getElementById(`tab-${chatName}`).classList.add('active');
 }
 
-// Emoji picker functions
+// Emoji features
 function toggleEmojiPicker(chat) {
   const pickerDiv = document.getElementById(`emojiPicker-${chat}`);
-  if (!pickerDiv) return;
-  pickerDiv.style.display = pickerDiv.style.display === "none" ? "flex" : "none";
+  if (pickerDiv) pickerDiv.style.display = pickerDiv.style.display === "none" ? "flex" : "none";
 }
 function insertEmoji(chat, emoji) {
-  const inp = document.getElementById(`msgInput-${chat}`);
-  inp.value += emoji;
-  document.getElementById(`emojiPicker-${chat}`).style.display = "none";
-  inp.focus();
+  const inp = document.getElementById(`msgInput-${chat}`); inp.value += emoji;
+  document.getElementById(`emojiPicker-${chat}`).style.display = "none"; inp.focus();
 }
 window.addEventListener('click', function(e) {
-  openChats.forEach(function(chat) {
+  openChats.forEach(function(chat){
     const pickerDiv = document.getElementById(`emojiPicker-${chat}`);
-    if (pickerDiv && !pickerDiv.contains(e.target) && (!e.target.className || !e.target.className.includes('emoji-btn'))) {
-      pickerDiv.style.display = "none";
-    }
+    if (pickerDiv && !pickerDiv.contains(e.target) && (!e.target.className || !e.target.className.includes('emoji-btn'))) { pickerDiv.style.display = "none"; }
   });
 });
 
-// Encryption helpers - demo only
-function makeSessionKey(chat) {
-  return btoa(chat + "_secret");
-}
+// Encryption core
+function makeSessionKey(chat) { return btoa(chat + "_secret"); }
 function encryptMessage(text, key) {
   return btoa(unescape(encodeURIComponent(text)).split('').map(function(c, i) {
     return String.fromCharCode(c.charCodeAt(0) ^ key.charCodeAt(i % key.length));
@@ -143,11 +146,7 @@ function sendMessage(chat) {
   if (!inp.value) return;
   const key = makeSessionKey(chat);
   const encrypted = encryptMessage(inp.value, key);
-  db.ref('chats/' + chat).push({
-    from: myUsername,
-    message: encrypted,
-    type: 'text'
-  });
+  db.ref('chats/' + chat).push({from: myUsername, message: encrypted, type: 'text'});
   inp.value = "";
 }
 
@@ -163,23 +162,33 @@ function showMessage(chat, data) {
     content = `<span class="msg-bubble">${text}</span>`;
   }
   div.innerHTML = `<span class="msg-name">${data.from}</span>${content}`;
-  box.appendChild(div);
-  box.scrollTop = box.scrollHeight;
+  box.appendChild(div); box.scrollTop = box.scrollHeight;
 }
 
-// Image upload with Firebase Storage
 function uploadImage(e, chat) {
   const file = e.target.files[0];
   if (!file) return;
   const ref = storage.ref(`images/${chat}/${Date.now()}_${file.name}`);
-  ref.put(file).then(function(snapshot) {
-    ref.getDownloadURL().then(function(url) {
-      db.ref('chats/' + chat).push({
-        from: myUsername,
-        type: 'image',
-        url: url
+  const progressbar = document.getElementById(`progressbar-${chat}`);
+  const fill = document.getElementById(`progressfill-${chat}`);
+  progressbar.style.display = "block";
+  const task = ref.put(file);
+  task.on('state_changed',
+    function progress(snapshot) {
+      const perc = Math.round(snapshot.bytesTransferred / snapshot.totalBytes * 100);
+      fill.style.width = perc + "%";
+    },
+    function error(err) {
+      alert("Image upload error: " + err.message);
+      progressbar.style.display = "none";
+    },
+    function complete() {
+      ref.getDownloadURL().then(function(url) {
+        db.ref('chats/' + chat).push({from: myUsername, type: 'image', url: url});
+        progressbar.style.display = "none";
+        fill.style.width = "0%";
       });
-    });
-  });
+    }
+  );
   e.target.value = "";
 }
