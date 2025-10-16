@@ -1,13 +1,4 @@
-// Firebase setup for live messaging (get your keys from console.firebase.google.com)
-// YOU MUST create a Firebase project (free), open Realtime Database and copy config below:
-// Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
-import { getAnalytics } from "firebase/analytics";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
-
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// Your Firebase config from Firebase Console (paste your actual values here)
 const firebaseConfig = {
   apiKey: "AIzaSyAXPwge9me10YI38WFSIOQ1Lr-IzKrbUHA",
   authDomain: "pted-chat1.firebaseapp.com",
@@ -19,9 +10,7 @@ const firebaseConfig = {
   measurementId: "G-QXV6238N0P"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+// Initialize Firebase (CDN style)
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
@@ -40,7 +29,7 @@ function login() {
 function startChat() {
   friendUsername = document.getElementById('friendUsername').value.trim();
   if (!friendUsername) { alert("Enter your friend's username!"); return; }
-  chatId = [myUsername, friendUsername].sort().join('_');  // same chatId for both
+  chatId = [myUsername, friendUsername].sort().join('_');  // same chatId for both users
   document.getElementById('chatSection').style.display = "block";
   document.getElementById('chatFriend').innerText = friendUsername;
   sessionKey = makeSessionKey(myUsername, friendUsername);
@@ -49,8 +38,7 @@ function startChat() {
   });
 }
 
-// Simple session key (for demo!)
-// In hackathon, demo; in real use crypto libraries
+// Simple session key (for demo; use real crypto for production)
 function makeSessionKey(a, b) { return btoa(a + "_" + b + "_secret"); }
 
 // Encrypt message
@@ -68,7 +56,7 @@ function decryptMessage(enc, key) {
   ).join('');
 }
 
-// Sending messages
+// Send message
 function sendMessage() {
   const msg = document.getElementById('messageInput').value;
   if (!msg) return;
@@ -80,7 +68,7 @@ function sendMessage() {
   document.getElementById('messageInput').value = "";
 }
 
-// Show chat
+// Show chat messages
 function showMessage(data) {
   const who = data.from === myUsername ? "Me" : data.from;
   const text = decryptMessage(data.message, sessionKey);

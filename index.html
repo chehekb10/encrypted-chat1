@@ -3,19 +3,21 @@
 <head>
   <title>Encrypted Chat</title>
   <link rel="stylesheet" href="style.css">
-  <!-- Firebase scripts for backend-free messaging -->
+  <!-- Firebase scripts for browser (CDN) -->
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 </head>
 <body>
   <h2>Login</h2>
   <input type="text" id="myUsername" placeholder="Your username">
-  <button onclick="login()">Login</button>
+  <button onclick="login()" style="background:#25d366;">Login</button>
+  
   <div id="userSection" style="display:none;">
     <h2>Chat with</h2>
     <input type="text" id="friendUsername" placeholder="Friend's username">
     <button onclick="startChat()">Chat</button>
   </div>
+  
   <div id="chatSection" style="display:none;">
     <h2>Chat with <span id="chatFriend"></span></h2>
     <div id="chatBox"></div>
