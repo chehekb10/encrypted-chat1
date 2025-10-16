@@ -1,40 +1,32 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Encrypted Chat 💬</title>
+  <title>Secure Group Chat</title>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <link rel="stylesheet" href="style.css">
   <!-- Firebase scripts for browser (CDN) -->
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
 </head>
 <body>
   <div class="container">
     <header>
-      <h1>Encrypted Chat <span class="emoji">🔒💬</span></h1>
+      <h1>Secure Group Chat <span class="emoji">🛡️💬</span></h1>
     </header>
-    <main>
-      <section id="loginSection">
-        <input type="text" id="myUsername" placeholder="Your username">
-        <button onclick="login()" class="main-btn">Login</button>
-      </section>
-      <section id="userSection" style="display:none;">
-        <input type="text" id="friendUsername" placeholder="Friend's username">
-        <button onclick="startChat()" class="main-btn">Start Chat</button>
-      </section>
-      <section id="chatSection" style="display:none;">
-        <div class="chat-header">
-          <span>Chat with <span id="chatFriend"></span></span>
-        </div>
-        <div id="chatBox" class="chat-box"></div>
-        <div class="input-row">
-          <input type="text" id="messageInput" placeholder="Type a message..."/>
-          <button onclick="toggleEmojiPicker()" type="button" class="emoji-btn">😀</button>
-          <button onclick="sendMessage()" type="button" class="send-btn">Send</button>
-        </div>
-        <div id="emojiPicker" class="emoji-picker" style="display:none;"></div>
-      </section>
-    </main>
+    <!-- User Login -->
+    <section id="loginSection">
+      <input type="text" id="myUsername" placeholder="Your username">
+      <button onclick="login()" class="main-btn">Login</button>
+    </section>
+    <!-- Group/Direct Chat Selection -->
+    <section id="userSection" style="display:none;">
+      <input type="text" id="chatName" placeholder="Type group name or friend's username">
+      <button onclick="openChat()" class="main-btn">Open Chat</button>
+      <div class="chat-tabs" id="chatTabs"></div>
+    </section>
+    <!-- All chat windows (one per chat/group) -->
+    <div id="chatWindows"></div>
   </div>
   <script src="app.js"></script>
 </body>

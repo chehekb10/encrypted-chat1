@@ -7,7 +7,7 @@ body {
 }
 
 .container {
-  max-width: 500px;
+  max-width: 540px;
   margin: 40px auto 0 auto;
   background: #fff;
   border-radius: 1em;
@@ -22,7 +22,7 @@ header {
 
 header h1 {
   font-weight: 700;
-  font-size: 2.25em;
+  font-size: 2em;
   color: #217e6d;
   margin-bottom: 0;
 }
@@ -31,11 +31,6 @@ header .emoji {
   font-size: 1.2em;
   vertical-align: middle;
 }
-
-main section {
-  margin-bottom: 1.25em;
-}
-
 input[type=text] {
   font-size: 1.1em;
   padding: 0.75em;
@@ -46,10 +41,6 @@ input[type=text] {
   width: calc(100% - 8em);
   background: #f9f9f966;
   margin-bottom: 1em;
-}
-
-input[type=text]:disabled {
-  background: #e5e5e5;
 }
 
 .main-btn, .send-btn {
@@ -63,71 +54,122 @@ input[type=text]:disabled {
   transition: background 0.2s;
   margin-left: 0.5em;
 }
-
 .main-btn:hover, .send-btn:hover {
   background: linear-gradient(90deg, #24b159, #48d091);
 }
 
-.emoji-btn {
-  padding: 0.45em 1em;
-  border: none;
-  background: #fafafa;
-  border-radius: 1.5em;
-  font-size: 1.4em;
+/* Tabs for multi-chat */
+.chat-tabs {
+  display: flex;
+  gap: 0.6em;
+  margin-bottom: 0.7em;
+  flex-wrap: wrap;
+}
+.chat-tab {
+  background: #f3fff7;
+  border: 1px solid #25d36677;
+  border-radius: 1.1em;
+  padding: 0.4em 1.1em;
+  font-size: 1em;
+  margin-top: 0.2em;
   cursor: pointer;
-  margin-right: 0.5em;
-  transition: background 0.2s;
+}
+.chat-tab.active {
+  background: #2cd975;
+  color: white;
 }
 
-.emoji-btn:hover {
-  background: #e8f9ee;
-}
-
-.chat-box {
+/* Chat windows (one per group/chat) */
+.chat-window {
+  display: none;
   border-radius: 1em;
   background: #f7f7fa;
   border: 1.5px solid #bdf2dd;
-  max-height: 320px;
-  height: 200px;
-  overflow-y: auto;
-  padding: 1em;
-  font-size: 1.15em;
-  margin-bottom: 1.1em;
+  min-height: 340px;
+  max-height: 450px;
+  padding: 0.8em;
+  margin: 1.3em 0;
+  position: relative;
   box-shadow: 0 2px 10px #cdeedd55;
 }
 
+.chat-window.active { display: block; animation: fadein 0.3s; }
+
+@keyframes fadein { from { opacity:0; } to { opacity:1; } }
+
+.chat-header {
+  font-size: 1.13em;
+  font-weight: 500;
+  color: #277e50;
+  text-align: center;
+  padding: 0.2em 0 0.6em 0;
+}
+.chat-box {
+  min-height: 160px;
+  max-height: 220px;
+  overflow-y: auto;
+  width: 100%;
+  padding-bottom: 0.9em;
+}
+
+/* Vertical message cards - WhatsApp style, left-right alternate */
+.message {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin-bottom: 0.55em;
+}
+.message.me {
+  align-items: flex-end;
+}
+.msg-bubble {
+  background: #e4fed3;
+  border-radius: 1.1em 1.1em 1.1em 0.5em;
+  padding: 0.6em 1.1em;
+  font-size: 1.1em;
+  display: inline-block;
+  max-width: 84vw;
+  word-break: break-word;
+}
+.me .msg-bubble {
+  background: #d1ffe1;
+  color: #277e50;
+  border-radius: 1.1em 1.1em 0.5em 1.1em;
+}
+.msg-name {
+  font-size: 0.92em;
+  opacity: 0.65;
+  margin-bottom: 0.14em;
+}
+.msg-image img{
+  max-width: 210px;
+  max-height: 130px;
+  border-radius: 0.7em;
+  margin-top: 0.5em;
+  border: 1.3px solid #bdf2dd;
+}
 .input-row {
   display: flex;
   align-items: center;
   gap: 0.3em;
 }
-
-.message-left {
-  background: #e4fed3;
-  display: inline-block;
-  border-radius: 1em 1em 1em 0.4em;
-  margin-bottom: 0.35em;
-  padding: 0.5em 1em;
+input[type=file] {
+  background: #f1fff9;
+  border: none;
+  margin-left: 0.4em;
+}
+.emoji-btn, .img-btn {
+  padding: 0.4em 0.8em;
+  border: none;
+  background: #f3fff7;
+  border-radius: 1.5em;
+  font-size: 1.3em;
+  cursor: pointer;
 }
 
-.message-right {
-  background: #d1ffe1;
-  color: #277e50;
-  display: inline-block;
-  border-radius: 1em 1em 0.4em 1em;
-  margin-left: auto;
-  margin-bottom: 0.35em;
-  padding: 0.5em 1em;
-  text-align: right;
+.emoji-btn:hover, .img-btn:hover {
+  background: #e8f9ee;
 }
-
-.chat-header {
-  font-weight: 500;
-  color: #277e50;
-  margin-bottom: 0.5em;
-  text-align: center;
-}
-
 .emoji-picker {
   display: flex;
   flex-wrap: wrap;
