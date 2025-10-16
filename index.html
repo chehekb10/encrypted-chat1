@@ -9,34 +9,34 @@
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
 </head>
 <body>
-  <div class="theme-toggle">
+  <div class="theme-toggle" style="text-align:center;">
     <button onclick="toggleTheme()" class="theme-btn" id="themeBtn">🌚</button>
   </div>
   <div class="chat-outer" id="chatApp">
     <header>
       <h1><span class="chat-emoji">💬</span> Ultra Chat Premium</h1>
     </header>
-    <main>
+    <main style="text-align:center;">
       <section id="loginSection" class="fadeIn">
-        <h2>👤 Enter Username</h2>
+        <h2 style="margin-bottom:1.11em;">👤 Enter Username</h2>
         <input type="text" id="myUsername" placeholder="Type your username...">
         <button onclick="login()" class="main-btn">Login</button>
       </section>
       <section id="userSection" style="display:none;">
-        <h2 id="chatTitle">New Chat</h2>
+        <h2 id="chatTitle" style="text-align:center;">New Chat</h2>
         <select id="chatType" class="selector" onchange="updateChatOption()">
           <option value="personal">Personal Chat</option>
           <option value="group">Group Chat</option>
         </select>
         <input type="text" id="chatName" placeholder="Enter friend's username...">
-        <button id="openChatBtn" onclick="openChat()" class="main-btn">Start Personal Chat</button>
-        <div class="read-opt">
+        <button id="openChatBtn" onclick="openChat()" class="main-btn" style="margin-bottom:1em;">Start Personal Chat</button>
+        <div class="read-opt" style="text-align:center;">
           <label>
             <input type="checkbox" id="readReceipts" checked onchange="toggleReadReceipts()"> 
             Enable Read Receipts
           </label>
         </div>
-        <div class="chat-tabs" id="chatTabs"></div>
+        <div class="chat-tabs" id="chatTabs" style="justify-content:center;text-align:center;"></div>
       </section>
       <div id="chatWindows"></div>
     </main>
