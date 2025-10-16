@@ -1,3 +1,4 @@
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyAXPwge9me10YI38WFSIOQ1Lr-IzKrbUHA",
   authDomain: "pted-chat1.firebaseapp.com",
@@ -10,10 +11,14 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+const storage = firebase.storage();
 
 let myUsername = "";
 let openChats = [];
 let receiptOn = true;
+let typingTimeouts = {};
+let hideForMe = {}; // remembers "deleted for me" per chat
+
 const emojiList = "😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😜 🤪 😝 😛 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶".split(" ");
 
 function normalize(str) { return str.trim().toLowerCase(); }
@@ -50,6 +55,7 @@ function openChat() {
   if (openChats.includes(chatName)) return switchChat(chatName);
 
   openChats.push(chatName);
+  hideForMe[chatName] = hideForMe[chatName] || {};
   const tab = document.createElement('div');
   tab.className = "chat-tab";
   tab.innerText = chatName;
@@ -57,14 +63,20 @@ function openChat() {
   tab.id = `tab-${chatName}`;
   document.getElementById('chatTabs').appendChild(tab);
 
+  // Chat window with audio row + typing indicator
   const chatWin = document.createElement('div');
   chatWin.className = "chat-window";
   chatWin.id = `chat-${chatName}`;
   chatWin.innerHTML = `
     <div class="chat-header"><span style="font-size:1.14em;">${chatName}</span></div>
+    <div class="typing-indicator" id="typing-${chatName}" style="display:none;"></div>
     <div class="chat-box" id="chatBox-${chatName}"></div>
+    <div class="audio-row">
+      <button type="button" class="record-btn" onclick="startRecording('${chatName}')">🎤</button>
+      <button type="button" class="stop-btn" id="stoprec-${chatName}" style="display:none;" onclick="stopRecording('${chatName}')">⏹️</button>
+    </div>
     <div class="input-row">
-      <input type="text" placeholder="Type a message..." id="msgInput-${chatName}">
+      <input type="text" placeholder="Type a message..." id="msgInput-${chatName}" oninput="sendTyping('${chatName}')">
       <button type="button" class="emoji-btn" onclick="toggleEmojiPicker('${chatName}')">😀</button>
       <button type="button" class="send-btn" onclick="sendMessage('${chatName}')">Send</button>
     </div>
@@ -86,20 +98,28 @@ function openChat() {
   db.ref('chats/' + chatName).on('child_added', function(snapshot) {
     showMessage(chatName, snapshot.key, snapshot.val());
   });
-
   db.ref('chats/' + chatName).on('child_changed', function(snapshot) {
     updateEditedMessage(chatName, snapshot.key, snapshot.val());
   });
-
   db.ref('chats/' + chatName).on('child_removed', function(snapshot) {
     if (document.getElementById(`msg-${snapshot.key}`)) {
       document.getElementById(`msg-${snapshot.key}`).remove();
     }
   });
 
+  // Typing indicator
+  db.ref('typing/' + chatName).on('value', function(snapshot) {
+    const typing = snapshot.val();
+    if (typing && typing.user !== myUsername && typing.typing) {
+      document.getElementById(`typing-${chatName}`).innerText = typing.user + " is typing...";
+      document.getElementById(`typing-${chatName}`).style.display = "block";
+    } else {
+      document.getElementById(`typing-${chatName}`).style.display = "none";
+    }
+  });
+
   switchChat(chatName);
 }
-
 function switchChat(chatName) {
   openChats.forEach(function(name) {
     document.getElementById(`chat-${name}`).classList.remove('active');
@@ -109,13 +129,13 @@ function switchChat(chatName) {
   document.getElementById(`tab-${chatName}`).classList.add('active');
 }
 
-// Emoji picker
 function toggleEmojiPicker(chat) {
   const pickerDiv = document.getElementById(`emojiPicker-${chat}`);
   if (pickerDiv) pickerDiv.style.display = pickerDiv.style.display === "none" ? "flex" : "none";
 }
 function insertEmoji(chat, emoji) {
-  const inp = document.getElementById(`msgInput-${chat}`); inp.value += emoji;
+  const inp = document.getElementById(`msgInput-${chat}`);
+  inp.value += emoji;
   document.getElementById(`emojiPicker-${chat}`).style.display = "none"; inp.focus();
 }
 window.addEventListener('click', function(e) {
@@ -125,18 +145,16 @@ window.addEventListener('click', function(e) {
   });
 });
 
-// Encryption
+// ENCRYPTION LOGIC
 function makeSessionKey(chat) { return btoa(chat + "_secret"); }
 function encryptMessage(text, key) {
-  return btoa(unescape(encodeURIComponent(text)).split('').map(function(c, i) {
-    return String.fromCharCode(c.charCodeAt(0) ^ key.charCodeAt(i % key.length));
-  }).join(''));
+  return btoa(unescape(encodeURIComponent(text)).split('').map((c, i) =>
+    String.fromCharCode(c.charCodeAt(0) ^ key.charCodeAt(i % key.length))).join(''));
 }
 function decryptMessage(enc, key) {
   let text = atob(enc);
-  return decodeURIComponent(escape(text.split('').map(function(c, i) {
-    return String.fromCharCode(c.charCodeAt(0) ^ key.charCodeAt(i % key.length));
-  }).join('')));
+  return decodeURIComponent(escape(text.split('').map((c, i) =>
+    String.fromCharCode(c.charCodeAt(0) ^ key.charCodeAt(i % key.length))).join('')));
 }
 
 function sendMessage(chat) {
@@ -149,48 +167,113 @@ function sendMessage(chat) {
     message: encrypted,
     type: 'text',
     readby: {[myUsername]: true},
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    deletedFor: {}
   };
   db.ref('chats/' + chat).push(msgData);
   inp.value = "";
+  db.ref('typing/' + chat).set({user: myUsername, typing:false});
 }
 
+// Typing Indicator
+window.sendTyping = function(chat) {
+  db.ref('typing/' + chat).set({user: myUsername, typing:true});
+  if (typingTimeouts[chat]) clearTimeout(typingTimeouts[chat]);
+  typingTimeouts[chat] = setTimeout(() => {
+    db.ref('typing/' + chat).set({user: myUsername, typing:false});
+  }, 1300);
+};
+
+// VOICE MESSAGE LOGIC
+let mediaRecorder, audioChunks = {};
+window.startRecording = function(chat) {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert("Voice message not supported in this browser.");
+    return;
+  }
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+    document.querySelector(`#stoprec-${chat}`).style.display = "inline-block";
+    mediaRecorder = new window.MediaRecorder(stream);
+    audioChunks[chat] = [];
+    mediaRecorder.ondataavailable = e => audioChunks[chat].push(e.data);
+    mediaRecorder.onstop = e => {
+      const blob = new Blob(audioChunks[chat], { type: 'audio/webm' });
+      uploadAudio(chat, blob);
+    };
+    mediaRecorder.start();
+  });
+};
+window.stopRecording = function(chat) {
+  document.querySelector(`#stoprec-${chat}`).style.display = "none";
+  if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
+};
+function uploadAudio(chat, blob) {
+  const ref = storage.ref(`voice/${chat}/${Date.now()}.webm`);
+  ref.put(blob).then(snapshot => ref.getDownloadURL().then(url => {
+    const msgData = {
+      from: myUsername,
+      message: '',
+      type: 'audio',
+      audioUrl: url,
+      readby: {[myUsername]: true},
+      timestamp: Date.now(),
+      deletedFor: {}
+    };
+    db.ref('chats/' + chat).push(msgData);
+  }));
+}
+
+// MESSAGE LOGIC
 function showMessage(chat, msgKey, data) {
+  if ((hideForMe[chat] && hideForMe[chat][msgKey])) return;
   const box = document.getElementById(`chatBox-${chat}`);
   if (document.getElementById(`msg-${msgKey}`)) return;
-
   const div = document.createElement('div');
   div.className = "message" + (data.from === myUsername ? " me" : "");
   div.id = `msg-${msgKey}`;
+  let content = "";
 
-  let content = `<span class="msg-bubble">${decryptMessage(data.message, makeSessionKey(chat))}</span>`;
-  let actions = `
+  if (data.type === 'audio') {
+    content = `<span class="msg-bubble"><audio controls src="${data.audioUrl}"></audio></span>`;
+  } else {
+    content = `<span class="msg-bubble">${decryptMessage(data.message, makeSessionKey(chat))}</span>`;
+  }
+  let showActions = data.from === myUsername;
+  let actions = "";
+  if (showActions) {
+    actions = `
       <span class="msg-actions">
         <button class="action-btn" onclick="editMessage('${chat}','${msgKey}')">Edit</button>
-        <button class="action-btn" onclick="deleteMessage('${chat}','${msgKey}')">Delete</button>
+        <button class="action-btn" onclick="deleteForMe('${chat}','${msgKey}')">Delete for Me</button>
+        <button class="action-btn" onclick="deleteMessage('${chat}','${msgKey}')">Delete for Everyone</button>
       </span>`;
-
+  }
   let receipt = "";
-  if (receiptOn) {
+  if (showActions && receiptOn) {
     let keys = Object.keys(data.readby || {});
     let totalUsers = getChatUsers(chat, data);
     const isReadByAll = totalUsers.length && totalUsers.every(u => keys.includes(u));
     receipt = `<span class="read-receipt" style="color:${isReadByAll ? "#25d366":"#bbb"}" title="Read">${isReadByAll ? "✔✔" : "✔"}</span>`;
   }
-
   div.innerHTML = `<span class="msg-name">${data.from}</span>${content}${actions}${receipt}`;
   box.appendChild(div); box.scrollTop = box.scrollHeight;
 
-  // Mark as read
-  if (!data.readby || !data.readby[myUsername]) {
+  // Mark as read and update receipts
+  if (data.from !== myUsername && (!data.readby || !data.readby[myUsername])) {
     db.ref(`chats/${chat}/${msgKey}/readby/${myUsername}`).set(true);
   }
 }
 
 function updateEditedMessage(chat, msgKey, data) {
-  if (!document.getElementById(`msg-${msgKey}`)) return;
-  document.getElementById(`msg-${msgKey}`).querySelector('.msg-bubble').textContent =
-    decryptMessage(data.message, makeSessionKey(chat));
+  // Deleted only for me? Then don't update display
+  if ((hideForMe[chat] && hideForMe[chat][msgKey])) return;
+  let el = document.getElementById(`msg-${msgKey}`);
+  if (!el) return;
+  if (data.type === 'audio') {
+    el.querySelector('.msg-bubble').innerHTML = `<audio controls src="${data.audioUrl}"></audio>`;
+    return;
+  }
+  el.querySelector('.msg-bubble').textContent = decryptMessage(data.message, makeSessionKey(chat));
 }
 
 window.editMessage = function(chat, msgKey) {
@@ -223,16 +306,26 @@ function finishEdit(msgDiv, chat, msgKey, newText) {
   }
 }
 
+// Delete for Me vs Delete for Everyone
+window.deleteForMe = function(chat, msgKey) {
+  hideForMe[chat][msgKey] = true;
+  let box = document.getElementById(`msg-${msgKey}`);
+  if (box) {
+    box.classList.add('delete-anim');
+    setTimeout(() => box.remove(), 250);
+  }
+};
 window.deleteMessage = function(chat, msgKey) {
+  // Remove from database for all
   const box = document.getElementById(`msg-${msgKey}`);
-  box.classList.add('delete-anim');
-  setTimeout(function() {
-    db.ref(`chats/${chat}/${msgKey}`).remove();
-    box.remove();
-  }, 250);
-}
+  if (box) {
+    box.classList.add('delete-anim');
+    setTimeout(() => box.remove(), 250);
+  }
+  db.ref(`chats/${chat}/${msgKey}`).remove();
+};
 
-// Helper: For demo, get all chat users as participants (list unique senders + readers for receipts)
+// Helper: Chat participants
 function getChatUsers(chat, data) {
   let box = document.getElementById(`chatBox-${chat}`);
   if (!box) return [];
