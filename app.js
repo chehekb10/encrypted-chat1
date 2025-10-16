@@ -11,10 +11,10 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-const storage = firebase.storage();
 
 let myUsername = "";
 let openChats = [];
+let receiptOn = true;
 const emojiList =
   "😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😜 🤪 😝 😛 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶".split(" ");
 
@@ -33,6 +33,14 @@ window.updateChatOption = function() {
   }
 };
 window.onload = function() { updateChatOption(); };
+
+window.toggleReadReceipts = function() {
+  receiptOn = document.getElementById('readReceipts').checked;
+  // Optionally update all receipts display
+  document.querySelectorAll('.read-receipt').forEach(el => {
+    el.style.display = receiptOn ? "" : "none";
+  });
+};
 
 function login() {
   myUsername = normalize(document.getElementById('myUsername').value);
@@ -67,16 +75,9 @@ function openChat() {
     <div class="input-row">
       <input type="text" placeholder="Type a message..." id="msgInput-${chatName}">
       <button type="button" class="emoji-btn" onclick="toggleEmojiPicker('${chatName}')">😀</button>
-      <label class="img-upload-label">
-        <span class="img-btn" title="Send Image">🖼️</span>
-        <input type="file" accept="image/*" id="imgInput-${chatName}">
-      </label>
       <button type="button" class="send-btn" onclick="sendMessage('${chatName}')">Send</button>
     </div>
     <div class="emoji-picker" id="emojiPicker-${chatName}" style="display:none;"></div>
-    <div class="progressbar" id="progressbar-${chatName}" style="display:none;">
-      <div class="progressfill" id="progressfill-${chatName}"></div>
-    </div>
   `;
   document.getElementById('chatWindows').appendChild(chatWin);
 
@@ -90,13 +91,9 @@ function openChat() {
     pickerDiv.appendChild(btn);
   });
 
-  document.getElementById(`imgInput-${chatName}`).addEventListener('change', function (e) {
-    uploadImage(e, chatName);
-  });
-
   db.ref('chats/' + chatName).off();
   db.ref('chats/' + chatName).on('child_added', function(snapshot) {
-    showMessage(chatName, snapshot.val());
+    showMessage(chatName, snapshot.key, snapshot.val());
   });
 
   switchChat(chatName);
@@ -127,7 +124,7 @@ window.addEventListener('click', function(e) {
   });
 });
 
-// Encryption core
+// Encryption
 function makeSessionKey(chat) { return btoa(chat + "_secret"); }
 function encryptMessage(text, key) {
   return btoa(unescape(encodeURIComponent(text)).split('').map(function(c, i) {
@@ -146,49 +143,78 @@ function sendMessage(chat) {
   if (!inp.value) return;
   const key = makeSessionKey(chat);
   const encrypted = encryptMessage(inp.value, key);
-  db.ref('chats/' + chat).push({from: myUsername, message: encrypted, type: 'text'});
+  const msgData = {
+    from: myUsername,
+    message: encrypted,
+    type: 'text',
+    readby: {[myUsername]: true},
+    timestamp: Date.now()
+  };
+  db.ref('chats/' + chat).push(msgData);
   inp.value = "";
 }
 
-function showMessage(chat, data) {
+function showMessage(chat, msgKey, data) {
   const box = document.getElementById(`chatBox-${chat}`);
+  // Only show once
+  if (document.getElementById(`msg-${msgKey}`)) return;
+
   const div = document.createElement('div');
   div.className = "message" + (data.from === myUsername ? " me" : "");
-  let content = "";
-  if (data.type === 'image') {
-    content = `<div class="msg-image"><img src="${data.url}" alt="Image"></div>`;
-  } else {
-    const text = decryptMessage(data.message, makeSessionKey(chat));
-    content = `<span class="msg-bubble">${text}</span>`;
+  div.id = `msg-${msgKey}`;
+  let content = `<span class="msg-bubble">${decryptMessage(data.message, makeSessionKey(chat))}</span>`;
+  let actions = "";
+  if (data.from === myUsername) {
+    actions = `
+      <span class="msg-actions">
+        <button class="action-btn" onclick="editMessage('${chat}','${msgKey}')">Edit</button>
+        <button class="action-btn" onclick="deleteMessage('${chat}','${msgKey}')">Delete</button>
+      </span>
+    `;
   }
-  div.innerHTML = `<span class="msg-name">${data.from}</span>${content}`;
+  let receipt = "";
+  if (receiptOn && data.from === myUsername) {
+    let read = data.readby && Object.keys(data.readby || {}).length > 1;
+    receipt = `<span class="read-receipt" style="color:${read ? "#25d366":"#bbb"}" title="Read">${read ? "✔✔" : "✔"}</span>`;
+  }
+  // Show sender name for group, not personal chat. Always show for group.
+  div.innerHTML = `<span class="msg-name">${data.from}</span>${content}${actions}${receipt}`;
   box.appendChild(div); box.scrollTop = box.scrollHeight;
+  // Mark as read
+  if (data.from !== myUsername) {
+    db.ref(`chats/${chat}/${msgKey}/readby/${myUsername}`).set(true);
+  }
 }
 
-function uploadImage(e, chat) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const ref = storage.ref(`images/${chat}/${Date.now()}_${file.name}`);
-  const progressbar = document.getElementById(`progressbar-${chat}`);
-  const fill = document.getElementById(`progressfill-${chat}`);
-  progressbar.style.display = "block";
-  const task = ref.put(file);
-  task.on('state_changed',
-    function progress(snapshot) {
-      const perc = Math.round(snapshot.bytesTransferred / snapshot.totalBytes * 100);
-      fill.style.width = perc + "%";
-    },
-    function error(err) {
-      alert("Image upload error: " + err.message);
-      progressbar.style.display = "none";
-    },
-    function complete() {
-      ref.getDownloadURL().then(function(url) {
-        db.ref('chats/' + chat).push({from: myUsername, type: 'image', url: url});
-        progressbar.style.display = "none";
-        fill.style.width = "0%";
-      });
-    }
+window.editMessage = function(chat, msgKey) {
+  const box = document.getElementById(`msg-${msgKey}`);
+  const oldMsg = box.querySelector('.msg-bubble').textContent;
+  const inp = document.createElement("input");
+  inp.type = "text"; inp.style = "width:80%"; inp.value = oldMsg;
+  box.querySelector('.msg-bubble').replaceWith(inp);
+  inp.focus();
+  inp.onblur = function() {
+    finishEdit(box, chat, msgKey, inp.value);
+  };
+  inp.onkeydown = function(e) {
+    if (e.key === "Enter") finishEdit(box, chat, msgKey, inp.value);
+  }
+};
+function finishEdit(box, chat, msgKey, newText) {
+  const key = makeSessionKey(chat);
+  const enc = encryptMessage(newText, key);
+  db.ref(`chats/${chat}/${msgKey}/message`).set(enc);
+  // Restore display for user-side instantly
+  box.querySelector("input[type=text]").replaceWith(
+    (function(){let el = document.createElement('span'); el.className="msg-bubble"; el.textContent = newText; return el;})()
   );
-  e.target.value = "";
+}
+
+window.deleteMessage = function(chat, msgKey) {
+  const box = document.getElementById(`msg-${msgKey}`);
+  box.classList.add('delete-anim');
+  setTimeout(function() {
+    db.ref(`chats/${chat}/${msgKey}`).remove();
+    box.remove();
+  }, 250);
 }

@@ -58,7 +58,7 @@ input[type=text] {
 }
 .message {
   display: flex; flex-direction: column; align-items: flex-start;
-  margin-bottom: 0.68em;
+  margin-bottom: 0.68em; position:relative;
 }
 .message.me { align-items: flex-end; }
 .msg-bubble {
@@ -72,35 +72,19 @@ input[type=text] {
   border-radius: 1.3em 1.3em 0.7em 1.3em;
 }
 .msg-name { font-size: 0.92em; opacity: 0.67; margin-bottom: 0.13em;}
-.msg-image img{ max-width: 190px; max-height: 110px; border-radius: 0.7em; border: 1.2px solid #88e7c0; transform: scale(1.03);}
-.img-upload-label {cursor:pointer; color:#25d366;}
-input[type=file] { display: none;}
-.input-row { display: flex; align-items: center; gap: 0.3em;}
-.emoji-btn, .img-btn {
-  background: #e6fff8;
-  padding: 0.38em 0.75em; border: none; border-radius: 1.5em;
-  font-size: 1.32em; cursor: pointer;margin-right:0.2em;
+.msg-actions {
+  display: flex; gap:0.5em; font-size:0.88em; opacity:0.8; margin-top:.16em;
 }
-.emoji-btn:hover, .img-btn:hover { background: #d2ffee;}
-.send-btn {
-  background: #25d366; color: white; border-radius: 2em;
-  font-size: 1.09em; border:none;padding: 0.42em 1.5em;
+.action-btn {
+  background:none; border:none; color:#109770; font-size:1em; cursor:pointer; padding:0;
+  margin-right:0.18em;
 }
-.send-btn:hover { background: #23b152;}
-.emoji-picker {
-  display: flex; flex-wrap: wrap; gap: 0.2em;
-  background: #f3fffb; border: 1px solid #c4ecd4;
-  border-radius: 0.7em; padding: 0.7em;
-  max-width: 280px; max-height: 105px;font-size: 1.22em;
-  margin: 0.25em 0; box-shadow: 0 1px 4px #b0eee834;
-  animation: fadein 0.2s;
+.action-btn:hover { text-decoration: underline;}
+.read-receipt {
+  font-size: 1em; margin-left: 0.3em; color: #25d366; vertical-align: middle;
 }
-.progressbar {
-  width: 92%; margin: 0.6em auto 0.5em auto;
-  background: #e0fcef; border-radius: 0.7em;height: 0.8em;
-  box-shadow: 0 1px 8px #25d36633 inset;
+.delete-anim {
+  animation: fadeout 0.3s forwards;
 }
-.progressfill {
-  background: #25d366; height: 100%; border-radius:0.7em;
-  width:0%; transition:width 0.35s; }
+@keyframes fadeout { to {opacity:0; height:0; margin:0; padding:0;}}
 ::-webkit-scrollbar { width: 8px; } ::-webkit-scrollbar-thumb { background: #8beacc40; border-radius: 4px;}

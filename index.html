@@ -7,7 +7,6 @@
   <!-- Firebase (CDN) -->
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-storage.js"></script>
 </head>
 <body>
   <div class="chat-outer">
@@ -28,6 +27,9 @@
         </select>
         <input type="text" id="chatName" placeholder="Enter friend's username...">
         <button id="openChatBtn" onclick="openChat()" class="main-btn">Start Personal Chat</button>
+        <div style="margin:.7em 0;">
+          <label><input type="checkbox" id="readReceipts" checked onchange="toggleReadReceipts()"> Enable Read Receipts</label>
+        </div>
         <div class="chat-tabs" id="chatTabs"></div>
       </section>
       <div id="chatWindows"></div>
