@@ -1,4 +1,3 @@
-// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyAXPwge9me10YI38WFSIOQ1Lr-IzKrbUHA",
   authDomain: "pted-chat1.firebaseapp.com",
@@ -15,8 +14,7 @@ const db = firebase.database();
 let myUsername = "";
 let openChats = [];
 let receiptOn = true;
-const emojiList =
-  "😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😜 🤪 😝 😛 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶".split(" ");
+const emojiList = "😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😜 🤪 😝 😛 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶".split(" ");
 
 function normalize(str) { return str.trim().toLowerCase(); }
 
@@ -24,19 +22,13 @@ window.updateChatOption = function() {
   const chatType = document.getElementById('chatType').value;
   const chatName = document.getElementById('chatName');
   const openChatBtn = document.getElementById('openChatBtn');
-  if (chatType === "personal") {
-    chatName.placeholder = "Enter friend's username...";
-    openChatBtn.textContent = "Start Personal Chat";
-  } else {
-    chatName.placeholder = "Enter group name...";
-    openChatBtn.textContent = "Join Group Chat";
-  }
+  chatName.placeholder = chatType === "personal" ? "Enter friend's username..." : "Enter group name...";
+  openChatBtn.textContent = chatType === "personal" ? "Start Personal Chat" : "Join Group Chat";
 };
 window.onload = function() { updateChatOption(); };
 
 window.toggleReadReceipts = function() {
   receiptOn = document.getElementById('readReceipts').checked;
-  // Optionally update all receipts display
   document.querySelectorAll('.read-receipt').forEach(el => {
     el.style.display = receiptOn ? "" : "none";
   });
@@ -53,8 +45,7 @@ function login() {
 function openChat() {
   const chatType = document.getElementById('chatType').value;
   let chatName = normalize(document.getElementById('chatName').value);
-  if (!chatName) return alert(chatType === "personal"
-    ? "Enter friend's username!" : "Enter group name!");
+  if (!chatName) return alert(chatType === "personal" ? "Enter friend's username!" : "Enter group name!");
   if (chatType === "personal") chatName = [myUsername, chatName].sort().join('_');
   if (openChats.includes(chatName)) return switchChat(chatName);
 
@@ -96,6 +87,16 @@ function openChat() {
     showMessage(chatName, snapshot.key, snapshot.val());
   });
 
+  db.ref('chats/' + chatName).on('child_changed', function(snapshot) {
+    updateEditedMessage(chatName, snapshot.key, snapshot.val());
+  });
+
+  db.ref('chats/' + chatName).on('child_removed', function(snapshot) {
+    if (document.getElementById(`msg-${snapshot.key}`)) {
+      document.getElementById(`msg-${snapshot.key}`).remove();
+    }
+  });
+
   switchChat(chatName);
 }
 
@@ -108,7 +109,7 @@ function switchChat(chatName) {
   document.getElementById(`tab-${chatName}`).classList.add('active');
 }
 
-// Emoji features
+// Emoji picker
 function toggleEmojiPicker(chat) {
   const pickerDiv = document.getElementById(`emojiPicker-${chat}`);
   if (pickerDiv) pickerDiv.style.display = pickerDiv.style.display === "none" ? "flex" : "none";
@@ -156,58 +157,70 @@ function sendMessage(chat) {
 
 function showMessage(chat, msgKey, data) {
   const box = document.getElementById(`chatBox-${chat}`);
-  // Only show once
   if (document.getElementById(`msg-${msgKey}`)) return;
 
   const div = document.createElement('div');
   div.className = "message" + (data.from === myUsername ? " me" : "");
   div.id = `msg-${msgKey}`;
+
   let content = `<span class="msg-bubble">${decryptMessage(data.message, makeSessionKey(chat))}</span>`;
-  let actions = "";
-  if (data.from === myUsername) {
-    actions = `
+  let actions = `
       <span class="msg-actions">
         <button class="action-btn" onclick="editMessage('${chat}','${msgKey}')">Edit</button>
         <button class="action-btn" onclick="deleteMessage('${chat}','${msgKey}')">Delete</button>
-      </span>
-    `;
-  }
+      </span>`;
+
   let receipt = "";
-  if (receiptOn && data.from === myUsername) {
-    let read = data.readby && Object.keys(data.readby || {}).length > 1;
-    receipt = `<span class="read-receipt" style="color:${read ? "#25d366":"#bbb"}" title="Read">${read ? "✔✔" : "✔"}</span>`;
+  if (receiptOn) {
+    let keys = Object.keys(data.readby || {});
+    let totalUsers = getChatUsers(chat, data);
+    const isReadByAll = totalUsers.length && totalUsers.every(u => keys.includes(u));
+    receipt = `<span class="read-receipt" style="color:${isReadByAll ? "#25d366":"#bbb"}" title="Read">${isReadByAll ? "✔✔" : "✔"}</span>`;
   }
-  // Show sender name for group, not personal chat. Always show for group.
+
   div.innerHTML = `<span class="msg-name">${data.from}</span>${content}${actions}${receipt}`;
   box.appendChild(div); box.scrollTop = box.scrollHeight;
+
   // Mark as read
-  if (data.from !== myUsername) {
+  if (!data.readby || !data.readby[myUsername]) {
     db.ref(`chats/${chat}/${msgKey}/readby/${myUsername}`).set(true);
   }
 }
 
+function updateEditedMessage(chat, msgKey, data) {
+  if (!document.getElementById(`msg-${msgKey}`)) return;
+  document.getElementById(`msg-${msgKey}`).querySelector('.msg-bubble').textContent =
+    decryptMessage(data.message, makeSessionKey(chat));
+}
+
 window.editMessage = function(chat, msgKey) {
-  const box = document.getElementById(`msg-${msgKey}`);
-  const oldMsg = box.querySelector('.msg-bubble').textContent;
+  const msgDiv = document.getElementById(`msg-${msgKey}`);
+  const bubble = msgDiv.querySelector('.msg-bubble');
+  const oldMsg = bubble.textContent;
+  let finished = false;
   const inp = document.createElement("input");
   inp.type = "text"; inp.style = "width:80%"; inp.value = oldMsg;
-  box.querySelector('.msg-bubble').replaceWith(inp);
+  bubble.replaceWith(inp);
   inp.focus();
   inp.onblur = function() {
-    finishEdit(box, chat, msgKey, inp.value);
+    if (!finished) finishEdit(msgDiv, chat, msgKey, inp.value);
+    finished = true;
   };
   inp.onkeydown = function(e) {
-    if (e.key === "Enter") finishEdit(box, chat, msgKey, inp.value);
-  }
+    if (e.key === "Enter") {
+      finishEdit(msgDiv, chat, msgKey, inp.value);
+      finished = true;
+    }
+  };
 };
-function finishEdit(box, chat, msgKey, newText) {
+function finishEdit(msgDiv, chat, msgKey, newText) {
   const key = makeSessionKey(chat);
-  const enc = encryptMessage(newText, key);
-  db.ref(`chats/${chat}/${msgKey}/message`).set(enc);
-  // Restore display for user-side instantly
-  box.querySelector("input[type=text]").replaceWith(
-    (function(){let el = document.createElement('span'); el.className="msg-bubble"; el.textContent = newText; return el;})()
-  );
+  db.ref(`chats/${chat}/${msgKey}/message`).set(encryptMessage(newText, key));
+  if (msgDiv.querySelector("input[type=text]")) {
+    let el = document.createElement('span');
+    el.className = "msg-bubble"; el.textContent = newText;
+    msgDiv.querySelector("input[type=text]").replaceWith(el);
+  }
 }
 
 window.deleteMessage = function(chat, msgKey) {
@@ -217,4 +230,17 @@ window.deleteMessage = function(chat, msgKey) {
     db.ref(`chats/${chat}/${msgKey}`).remove();
     box.remove();
   }, 250);
+}
+
+// Helper: For demo, get all chat users as participants (list unique senders + readers for receipts)
+function getChatUsers(chat, data) {
+  let box = document.getElementById(`chatBox-${chat}`);
+  if (!box) return [];
+  let users = new Set();
+  Array.from(box.children).forEach(div => {
+    let nameEl = div.querySelector('.msg-name');
+    if (nameEl) users.add(nameEl.textContent);
+  });
+  if (data.readby) Object.keys(data.readby).forEach(u => users.add(u));
+  return Array.from(users);
 }
