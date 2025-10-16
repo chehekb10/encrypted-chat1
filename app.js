@@ -1,14 +1,27 @@
 // Firebase setup for live messaging (get your keys from console.firebase.google.com)
 // YOU MUST create a Firebase project (free), open Realtime Database and copy config below:
+// Import the functions you need from the SDKs you need
+import { initializeApp } from "firebase/app";
+import { getAnalytics } from "firebase/analytics";
+// TODO: Add SDKs for Firebase products that you want to use
+// https://firebase.google.com/docs/web/setup#available-libraries
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: "AIza...",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  databaseURL: "https://YOUR_PROJECT.firebaseio.com",
-  projectId: "YOUR_PROJECT",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "xxxx",
-  appId: "xxxx"
+  apiKey: "AIzaSyAXPwge9me10YI38WFSIOQ1Lr-IzKrbUHA",
+  authDomain: "pted-chat1.firebaseapp.com",
+  databaseURL: "https://pted-chat1-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "pted-chat1",
+  storageBucket: "pted-chat1.firebasestorage.app",
+  messagingSenderId: "27789922441",
+  appId: "1:27789922441:web:9a196f0040b64b2a2ff658",
+  measurementId: "G-QXV6238N0P"
 };
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
