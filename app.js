@@ -39,6 +39,9 @@ function startChat() {
   db.ref('chats/' + chatId).on('child_added', function(snapshot) {
     showMessage(snapshot.val());
   });
+  console.log("chatId:", chatId); // add for debugging
+console.log("sessionKey:", sessionKey); // add for debugging
+
 }
 
 function makeSessionKey(a, b) {
