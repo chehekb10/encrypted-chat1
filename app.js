@@ -1,4 +1,4 @@
-// Firebase config
+// ---------- Firebase setup ----------
 const firebaseConfig = {
   apiKey: "AIzaSyAXPwge9me10YI38WFSIOQ1Lr-IzKrbUHA",
   authDomain: "pted-chat1.firebaseapp.com",
@@ -11,18 +11,42 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-const storage = firebase.storage();
 
 let myUsername = "";
 let openChats = [];
 let receiptOn = true;
 let typingTimeouts = {};
-let hideForMe = {}; // remembers "deleted for me" per chat
-
+let hideForMe = {};
+let currentTheme = "light";
 const emojiList = "😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😜 🤪 😝 😛 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶".split(" ");
+const allReactions = ["👍", "❤️", "😂", "😮", "😢", "👏", "🔥", "🤩", "💯", "🎉"];
 
 function normalize(str) { return str.trim().toLowerCase(); }
 
+// ---------- Theme toggle ----------
+window.toggleTheme = function() {
+  const root = document.body;
+  const btn = document.getElementById("themeBtn");
+  if (currentTheme === "light") {
+    root.style.background = "linear-gradient(110deg,#232638 40%,#123f36 100%)";
+    root.style.color = "#eee";
+    document.getElementById("chatApp").style.background = "#26293d";
+    [...document.querySelectorAll(".chat-window, input, .selector, .chat-box, header")].forEach(el => {if(el) el.style.background = "#232638";});
+    btn.classList.add("light");
+    btn.innerText = "🌞";
+    currentTheme = "dark";
+  } else {
+    root.style.background = "";
+    root.style.color = "";
+    document.getElementById("chatApp").style.background = "";
+    [...document.querySelectorAll(".chat-window, input, .selector, .chat-box, header")].forEach(el => {if(el) el.style.background = "";});
+    btn.classList.remove("light");
+    btn.innerText = "🌚";
+    currentTheme = "light";
+  }
+};
+
+// ---------- Chat UI logic ----------
 window.updateChatOption = function() {
   const chatType = document.getElementById('chatType').value;
   const chatName = document.getElementById('chatName');
@@ -63,7 +87,6 @@ function openChat() {
   tab.id = `tab-${chatName}`;
   document.getElementById('chatTabs').appendChild(tab);
 
-  // Chat window with audio row + typing indicator
   const chatWin = document.createElement('div');
   chatWin.className = "chat-window";
   chatWin.id = `chat-${chatName}`;
@@ -71,10 +94,6 @@ function openChat() {
     <div class="chat-header"><span style="font-size:1.14em;">${chatName}</span></div>
     <div class="typing-indicator" id="typing-${chatName}" style="display:none;"></div>
     <div class="chat-box" id="chatBox-${chatName}"></div>
-    <div class="audio-row">
-      <button type="button" class="record-btn" onclick="startRecording('${chatName}')">🎤</button>
-      <button type="button" class="stop-btn" id="stoprec-${chatName}" style="display:none;" onclick="stopRecording('${chatName}')">⏹️</button>
-    </div>
     <div class="input-row">
       <input type="text" placeholder="Type a message..." id="msgInput-${chatName}" oninput="sendTyping('${chatName}')">
       <button type="button" class="emoji-btn" onclick="toggleEmojiPicker('${chatName}')">😀</button>
@@ -84,6 +103,7 @@ function openChat() {
   `;
   document.getElementById('chatWindows').appendChild(chatWin);
 
+  // Emoji picker
   const pickerDiv = document.getElementById(`emojiPicker-${chatName}`);
   emojiList.forEach(e => {
     const btn = document.createElement("button");
@@ -145,7 +165,7 @@ window.addEventListener('click', function(e) {
   });
 });
 
-// ENCRYPTION LOGIC
+// ENCRYPTION
 function makeSessionKey(chat) { return btoa(chat + "_secret"); }
 function encryptMessage(text, key) {
   return btoa(unescape(encodeURIComponent(text)).split('').map((c, i) =>
@@ -168,6 +188,8 @@ function sendMessage(chat) {
     type: 'text',
     readby: {[myUsername]: true},
     timestamp: Date.now(),
+    reactions: {},
+    starred: {},
     deletedFor: {}
   };
   db.ref('chats/' + chat).push(msgData);
@@ -175,55 +197,16 @@ function sendMessage(chat) {
   db.ref('typing/' + chat).set({user: myUsername, typing:false});
 }
 
-// Typing Indicator
+// Typing Indicator logic
 window.sendTyping = function(chat) {
   db.ref('typing/' + chat).set({user: myUsername, typing:true});
   if (typingTimeouts[chat]) clearTimeout(typingTimeouts[chat]);
   typingTimeouts[chat] = setTimeout(() => {
     db.ref('typing/' + chat).set({user: myUsername, typing:false});
-  }, 1300);
+  }, 1200);
 };
 
-// VOICE MESSAGE LOGIC
-let mediaRecorder, audioChunks = {};
-window.startRecording = function(chat) {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    alert("Voice message not supported in this browser.");
-    return;
-  }
-  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-    document.querySelector(`#stoprec-${chat}`).style.display = "inline-block";
-    mediaRecorder = new window.MediaRecorder(stream);
-    audioChunks[chat] = [];
-    mediaRecorder.ondataavailable = e => audioChunks[chat].push(e.data);
-    mediaRecorder.onstop = e => {
-      const blob = new Blob(audioChunks[chat], { type: 'audio/webm' });
-      uploadAudio(chat, blob);
-    };
-    mediaRecorder.start();
-  });
-};
-window.stopRecording = function(chat) {
-  document.querySelector(`#stoprec-${chat}`).style.display = "none";
-  if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
-};
-function uploadAudio(chat, blob) {
-  const ref = storage.ref(`voice/${chat}/${Date.now()}.webm`);
-  ref.put(blob).then(snapshot => ref.getDownloadURL().then(url => {
-    const msgData = {
-      from: myUsername,
-      message: '',
-      type: 'audio',
-      audioUrl: url,
-      readby: {[myUsername]: true},
-      timestamp: Date.now(),
-      deletedFor: {}
-    };
-    db.ref('chats/' + chat).push(msgData);
-  }));
-}
-
-// MESSAGE LOGIC
+// MESSAGE LOGIC WITH REACTIONS, STAR, TIME, RECEIPTS
 function showMessage(chat, msgKey, data) {
   if ((hideForMe[chat] && hideForMe[chat][msgKey])) return;
   const box = document.getElementById(`chatBox-${chat}`);
@@ -231,13 +214,9 @@ function showMessage(chat, msgKey, data) {
   const div = document.createElement('div');
   div.className = "message" + (data.from === myUsername ? " me" : "");
   div.id = `msg-${msgKey}`;
-  let content = "";
+  let content = `<span class="msg-bubble">${decryptMessage(data.message, makeSessionKey(chat))}</span>`;
 
-  if (data.type === 'audio') {
-    content = `<span class="msg-bubble"><audio controls src="${data.audioUrl}"></audio></span>`;
-  } else {
-    content = `<span class="msg-bubble">${decryptMessage(data.message, makeSessionKey(chat))}</span>`;
-  }
+  // Only show controls for OWN messages!
   let showActions = data.from === myUsername;
   let actions = "";
   if (showActions) {
@@ -246,16 +225,30 @@ function showMessage(chat, msgKey, data) {
         <button class="action-btn" onclick="editMessage('${chat}','${msgKey}')">Edit</button>
         <button class="action-btn" onclick="deleteForMe('${chat}','${msgKey}')">Delete for Me</button>
         <button class="action-btn" onclick="deleteMessage('${chat}','${msgKey}')">Delete for Everyone</button>
-      </span>`;
+        <button class="star-btn ${data.starred && data.starred[myUsername] ? 'selected' : ''}" title="Starred" onclick="starMessage('${chat}','${msgKey}')">★</button>
+      </span>
+    `;
   }
+  // Reactions (for all)
+  let reactRow = `<span class="reaction-row" id="reactrow-${msgKey}">`;
+  allReactions.forEach(re =>
+    reactRow += `<button class="react-btn" onclick="reactToMessage('${chat}','${msgKey}','${re}')">${re}${renderReactionCount(data,re)}</button>`
+  );
+  reactRow += '</span>';
+
+  // Time
+  let localTime = new Date(data.timestamp||0).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+  let time = `<span class="time-stamp">${localTime}</span>`;
+
+  // Read receipt: Only for own messages, only shows in your chat, blue if everyone seen
   let receipt = "";
   if (showActions && receiptOn) {
-    let keys = Object.keys(data.readby || {});
-    let totalUsers = getChatUsers(chat, data);
+    let keys = Object.keys(data.readby||{});
+    let totalUsers = getChatUsers(chat, data, true);
     const isReadByAll = totalUsers.length && totalUsers.every(u => keys.includes(u));
-    receipt = `<span class="read-receipt" style="color:${isReadByAll ? "#25d366":"#bbb"}" title="Read">${isReadByAll ? "✔✔" : "✔"}</span>`;
+    receipt = `<span class="read-receipt" style="color:${isReadByAll?"#0977e6":"#bbb"}" title="Read">${isReadByAll?"✔✔":"✔"}</span>`;
   }
-  div.innerHTML = `<span class="msg-name">${data.from}</span>${content}${actions}${receipt}`;
+  div.innerHTML = `<span class="msg-name">${data.from} ${data.starred && data.starred[myUsername] ? '★' : ''}</span>${content}${time}${actions}${showActions?reactRow:"" }${receipt}`;
   box.appendChild(div); box.scrollTop = box.scrollHeight;
 
   // Mark as read and update receipts
@@ -265,17 +258,16 @@ function showMessage(chat, msgKey, data) {
 }
 
 function updateEditedMessage(chat, msgKey, data) {
-  // Deleted only for me? Then don't update display
   if ((hideForMe[chat] && hideForMe[chat][msgKey])) return;
   let el = document.getElementById(`msg-${msgKey}`);
   if (!el) return;
-  if (data.type === 'audio') {
-    el.querySelector('.msg-bubble').innerHTML = `<audio controls src="${data.audioUrl}"></audio>`;
-    return;
-  }
   el.querySelector('.msg-bubble').textContent = decryptMessage(data.message, makeSessionKey(chat));
+  // Update star status
+  let starBtn = el.querySelector('.star-btn'); 
+  if(starBtn) data.starred && data.starred[myUsername] ? starBtn.classList.add('selected') : starBtn.classList.remove('selected');
 }
 
+// --- Edit & delete logic ---
 window.editMessage = function(chat, msgKey) {
   const msgDiv = document.getElementById(`msg-${msgKey}`);
   const bubble = msgDiv.querySelector('.msg-bubble');
@@ -291,8 +283,7 @@ window.editMessage = function(chat, msgKey) {
   };
   inp.onkeydown = function(e) {
     if (e.key === "Enter") {
-      finishEdit(msgDiv, chat, msgKey, inp.value);
-      finished = true;
+      finishEdit(msgDiv, chat, msgKey, inp.value); finished = true;
     }
   };
 };
@@ -305,35 +296,44 @@ function finishEdit(msgDiv, chat, msgKey, newText) {
     msgDiv.querySelector("input[type=text]").replaceWith(el);
   }
 }
-
-// Delete for Me vs Delete for Everyone
 window.deleteForMe = function(chat, msgKey) {
   hideForMe[chat][msgKey] = true;
   let box = document.getElementById(`msg-${msgKey}`);
   if (box) {
     box.classList.add('delete-anim');
-    setTimeout(() => box.remove(), 250);
+    setTimeout(() => box.remove(), 210);
   }
 };
 window.deleteMessage = function(chat, msgKey) {
-  // Remove from database for all
   const box = document.getElementById(`msg-${msgKey}`);
   if (box) {
     box.classList.add('delete-anim');
-    setTimeout(() => box.remove(), 250);
+    setTimeout(() => box.remove(), 220);
   }
   db.ref(`chats/${chat}/${msgKey}`).remove();
 };
+// --- Reactions & starring ---
+window.reactToMessage = function(chat, msgKey, emoji) {
+  let ref = db.ref(`chats/${chat}/${msgKey}/reactions/${emoji}`);
+  ref.transaction(count => (count||0) + 1 );
+};
+function renderReactionCount(data, emoji) {
+  return data.reactions&&data.reactions[emoji]?` (${data.reactions[emoji]})`:"";
+}
+window.starMessage = function(chat,msgKey){
+  let ref = db.ref(`chats/${chat}/${msgKey}/starred/${myUsername}`);
+  ref.set(firebase.database.ServerValue.TIMESTAMP);
+};
 
-// Helper: Chat participants
-function getChatUsers(chat, data) {
+// --- Participants
+function getChatUsers(chat, data, includeReaders) {
   let box = document.getElementById(`chatBox-${chat}`);
   if (!box) return [];
   let users = new Set();
   Array.from(box.children).forEach(div => {
     let nameEl = div.querySelector('.msg-name');
-    if (nameEl) users.add(nameEl.textContent);
+    if (nameEl) users.add(nameEl.textContent.replace(" ★",""));
   });
-  if (data.readby) Object.keys(data.readby).forEach(u => users.add(u));
+  if (includeReaders && data.readby) Object.keys(data.readby).forEach(u => users.add(u));
   return Array.from(users);
 }
