@@ -1,4 +1,4 @@
-// Your Firebase config (make sure this matches your Firebase Console!)
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyAXPwge9me10YI38WFSIOQ1Lr-IzKrbUHA",
   authDomain: "pted-chat1.firebaseapp.com",
@@ -10,36 +10,39 @@ const firebaseConfig = {
   measurementId: "G-QXV6238N0P"
 };
 
-// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 let myUsername = "", friendUsername = "", sessionKey = "";
 let chatId = "";
 
+function normalize(str) {
+  return str.trim().toLowerCase();
+}
+
 function login() {
-  myUsername = document.getElementById('myUsername').value.trim();
+  myUsername = normalize(document.getElementById('myUsername').value);
   if (!myUsername) { alert("Enter a username!"); return; }
   document.getElementById('userSection').style.display = "block";
   document.getElementById('myUsername').disabled = true;
 }
 
 function startChat() {
-  friendUsername = document.getElementById('friendUsername').value.trim();
+  friendUsername = normalize(document.getElementById('friendUsername').value);
   if (!friendUsername) { alert("Enter your friend's username!"); return; }
-  chatId = [myUsername, friendUsername].sort().join('_'); // same for both users if order matched
+  // Use normalized usernames for chatId (order-independent)
+  chatId = [myUsername, friendUsername].sort().join('_');
   document.getElementById('chatSection').style.display = "block";
   document.getElementById('chatFriend').innerText = friendUsername;
   sessionKey = makeSessionKey(myUsername, friendUsername);
-  db.ref('chats/' + chatId).off(); // remove previous listeners to prevent duplicate messages
+  db.ref('chats/' + chatId).off(); // clear prior listeners
   db.ref('chats/' + chatId).on('child_added', function(snapshot) {
     showMessage(snapshot.val());
   });
 }
 
-// Simple (demo) session key—do NOT use for real production; use strong crypto!
-function makeSessionKey(a, b) { 
-  return btoa(a.trim().toLowerCase() + "_" + b.trim().toLowerCase() + "_secret"); 
+function makeSessionKey(a, b) {
+  return btoa([normalize(a), normalize(b)].sort().join('_') + "_secret");
 }
 
 function encryptMessage(text, key) {
