@@ -1,4 +1,3 @@
-// ---------- Firebase setup ----------
 const firebaseConfig = {
   apiKey: "AIzaSyAXPwge9me10YI38WFSIOQ1Lr-IzKrbUHA",
   authDomain: "pted-chat1.firebaseapp.com",
@@ -18,12 +17,12 @@ let receiptOn = true;
 let typingTimeouts = {};
 let hideForMe = {};
 let currentTheme = "light";
+// Only four simple reactions
+const allReactions = ["👍", "❤️", "😂", "😮"];
 const emojiList = "😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😜 🤪 😝 😛 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶".split(" ");
-const allReactions = ["👍", "❤️", "😂", "😮", "😢", "👏", "🔥", "🤩", "💯", "🎉"];
 
 function normalize(str) { return str.trim().toLowerCase(); }
 
-// ---------- Theme toggle ----------
 window.toggleTheme = function() {
   const root = document.body;
   const btn = document.getElementById("themeBtn");
@@ -46,7 +45,6 @@ window.toggleTheme = function() {
   }
 };
 
-// ---------- Chat UI logic ----------
 window.updateChatOption = function() {
   const chatType = document.getElementById('chatType').value;
   const chatName = document.getElementById('chatName');
@@ -140,6 +138,7 @@ function openChat() {
 
   switchChat(chatName);
 }
+
 function switchChat(chatName) {
   openChats.forEach(function(name) {
     document.getElementById(`chat-${name}`).classList.remove('active');
@@ -206,7 +205,7 @@ window.sendTyping = function(chat) {
   }, 1200);
 };
 
-// MESSAGE LOGIC WITH REACTIONS, STAR, TIME, RECEIPTS
+// ------ MESSAGE, REACTION, STAR, ETC. ------
 function showMessage(chat, msgKey, data) {
   if ((hideForMe[chat] && hideForMe[chat][msgKey])) return;
   const box = document.getElementById(`chatBox-${chat}`);
@@ -216,7 +215,6 @@ function showMessage(chat, msgKey, data) {
   div.id = `msg-${msgKey}`;
   let content = `<span class="msg-bubble">${decryptMessage(data.message, makeSessionKey(chat))}</span>`;
 
-  // Only show controls for OWN messages!
   let showActions = data.from === myUsername;
   let actions = "";
   if (showActions) {
@@ -225,22 +223,19 @@ function showMessage(chat, msgKey, data) {
         <button class="action-btn" onclick="editMessage('${chat}','${msgKey}')">Edit</button>
         <button class="action-btn" onclick="deleteForMe('${chat}','${msgKey}')">Delete for Me</button>
         <button class="action-btn" onclick="deleteMessage('${chat}','${msgKey}')">Delete for Everyone</button>
-        <button class="star-btn ${data.starred && data.starred[myUsername] ? 'selected' : ''}" title="Starred" onclick="starMessage('${chat}','${msgKey}')">★</button>
-      </span>
-    `;
+        <button class="star-btn" title="Starred" onclick="starMessage('${chat}','${msgKey}')">★</button>
+      </span>`;
   }
-  // Reactions (for all)
+
   let reactRow = `<span class="reaction-row" id="reactrow-${msgKey}">`;
   allReactions.forEach(re =>
-    reactRow += `<button class="react-btn" onclick="reactToMessage('${chat}','${msgKey}','${re}')">${re}${renderReactionCount(data,re)}</button>`
+    reactRow += `<button class="react-btn" data-emoji='${re}' onclick="reactToMessage('${chat}','${msgKey}','${re}')">${re}${renderReactionCount(data,re)}</button>`
   );
   reactRow += '</span>';
 
-  // Time
   let localTime = new Date(data.timestamp||0).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
   let time = `<span class="time-stamp">${localTime}</span>`;
 
-  // Read receipt: Only for own messages, only shows in your chat, blue if everyone seen
   let receipt = "";
   if (showActions && receiptOn) {
     let keys = Object.keys(data.readby||{});
@@ -248,26 +243,39 @@ function showMessage(chat, msgKey, data) {
     const isReadByAll = totalUsers.length && totalUsers.every(u => keys.includes(u));
     receipt = `<span class="read-receipt" style="color:${isReadByAll?"#0977e6":"#bbb"}" title="Read">${isReadByAll?"✔✔":"✔"}</span>`;
   }
-  div.innerHTML = `<span class="msg-name">${data.from} ${data.starred && data.starred[myUsername] ? '★' : ''}</span>${content}${time}${actions}${showActions?reactRow:"" }${receipt}`;
+  div.innerHTML = `<span class="msg-name">${data.from}${data.starred&&data.starred[myUsername]?' ★':''}</span>${content}${time}${actions}${showActions?reactRow:""}${receipt}`;
   box.appendChild(div); box.scrollTop = box.scrollHeight;
 
-  // Mark as read and update receipts
-  if (data.from !== myUsername && (!data.readby || !data.readby[myUsername])) {
-    db.ref(`chats/${chat}/${msgKey}/readby/${myUsername}`).set(true);
-  }
-}
+  // Live reaction & star updates
+  db.ref(`chats/${chat}/${msgKey}`).on('value', function(snap) {
+    const data = snap.val();
+    if (!data) return;
+    allReactions.forEach(re => {
+      const btn = document.querySelector(`#reactrow-${msgKey} .react-btn[data-emoji='${re}']`);
+      if (btn)
+        btn.innerHTML = re + (data.reactions && data.reactions[re] ? ` (${data.reactions[re]})` : "");
+    });
+    const starBtn = document.querySelector(`#msg-${msgKey} .star-btn`);
+    if (starBtn) {
+      if (data.starred && data.starred[myUsername])
+        starBtn.classList.add('selected');
+      else
+        starBtn.classList.remove('selected');
+    }
+  });
 
+  // Mark as read
+  if (data.from !== myUsername && (!data.readby || !data.readby[myUsername]))
+    db.ref(`chats/${chat}/${msgKey}/readby/${myUsername}`).set(true);
+}
 function updateEditedMessage(chat, msgKey, data) {
   if ((hideForMe[chat] && hideForMe[chat][msgKey])) return;
   let el = document.getElementById(`msg-${msgKey}`);
   if (!el) return;
   el.querySelector('.msg-bubble').textContent = decryptMessage(data.message, makeSessionKey(chat));
-  // Update star status
-  let starBtn = el.querySelector('.star-btn'); 
-  if(starBtn) data.starred && data.starred[myUsername] ? starBtn.classList.add('selected') : starBtn.classList.remove('selected');
 }
 
-// --- Edit & delete logic ---
+// Edit & delete
 window.editMessage = function(chat, msgKey) {
   const msgDiv = document.getElementById(`msg-${msgKey}`);
   const bubble = msgDiv.querySelector('.msg-bubble');
@@ -312,7 +320,7 @@ window.deleteMessage = function(chat, msgKey) {
   }
   db.ref(`chats/${chat}/${msgKey}`).remove();
 };
-// --- Reactions & starring ---
+// Reactions & starring
 window.reactToMessage = function(chat, msgKey, emoji) {
   let ref = db.ref(`chats/${chat}/${msgKey}/reactions/${emoji}`);
   ref.transaction(count => (count||0) + 1 );
@@ -322,10 +330,12 @@ function renderReactionCount(data, emoji) {
 }
 window.starMessage = function(chat,msgKey){
   let ref = db.ref(`chats/${chat}/${msgKey}/starred/${myUsername}`);
-  ref.set(firebase.database.ServerValue.TIMESTAMP);
+  db.ref(`chats/${chat}/${msgKey}/starred/${myUsername}`).once('value', function(snap){
+    if(snap.val()) ref.remove();
+    else ref.set(firebase.database.ServerValue.TIMESTAMP);
+  });
 };
-
-// --- Participants
+// Participants
 function getChatUsers(chat, data, includeReaders) {
   let box = document.getElementById(`chatBox-${chat}`);
   if (!box) return [];
