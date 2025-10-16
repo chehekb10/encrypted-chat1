@@ -4,6 +4,33 @@ body {
   font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
 }
 
+.theme-toggle {
+  position:fixed;
+  top:18px;
+  right:32px;
+  z-index:9;
+  text-align:center;
+}
+.theme-btn {
+  background:#111;
+  color:#fff;
+  font-size:2.5em;
+  border-radius:2.6em;
+  border:none;
+  padding:.22em 0.7em;
+  cursor:pointer;
+  box-shadow:0 2px 12px #6127bec2;
+  transition:background .2s, font-size .2s;
+  width:2.5em;
+  height:2.5em;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+.theme-btn.light {
+  background:#ededef;
+  color:#222;
+}
 .chat-outer {
   max-width: 430px;
   margin: 56px auto 0 auto;
@@ -53,7 +80,7 @@ font-size:1.23em;display:inline-block;max-width:75vw;word-break:break-word;
 box-shadow:0 2px 11px #b8e8ff15;text-align:center;}
 .me .msg-bubble{background:linear-gradient(90deg,#f8eafe 10%,#ffd86c 100%);color:#6530a4;}
 .msg-name{font-size:1.05em;color:#585a66;font-weight:500;opacity:.71;margin-bottom:.16em;text-align:center;}
-.star-icon { font-size:1.5em;color:#ffd600;vertical-align:middle;margin-left:.14em; font-weight:bold;}
+.star-icon { font-size:2em;color:#ffd600;vertical-align:middle;margin-left:.14em; font-weight:bold;}
 .msg-actions{display:flex;gap:.9em;font-size:1em;opacity:.78;margin-top:.25em;justify-content:center;}
 .action-btn{background:#ffd86c;border:none;color:#7c63dc;font-size:1em;cursor:pointer;padding:.32em .95em;
 border-radius:1.21em;margin-right:.13em;transition:.21s;font-weight:600;}
