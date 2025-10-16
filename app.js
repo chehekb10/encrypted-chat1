@@ -14,7 +14,7 @@ const db = firebase.database();
 const storage = firebase.storage();
 
 let myUsername = "";
-let openChats = []; // list of opened chat/group names
+let openChats = [];
 
 const emojiList =
   "😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😜 🤪 😝 😛 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶".split(" ");
@@ -32,8 +32,13 @@ function login() {
 }
 
 function openChat() {
-  const chatName = normalize(document.getElementById('chatName').value);
-  if (!chatName) return alert("Enter group name or friend's username!");
+  const chatType = document.getElementById('chatType').value;
+  let chatName = normalize(document.getElementById('chatName').value);
+  if (!chatName) return alert("Enter friend's username or group name!");
+  // Personal chat: chatId based on both usernames
+  if (chatType === "personal") {
+    chatName = [myUsername, chatName].sort().join('_');
+  }
   if (openChats.includes(chatName)) return switchChat(chatName);
 
   openChats.push(chatName);
@@ -41,7 +46,7 @@ function openChat() {
   const tab = document.createElement('div');
   tab.className = "chat-tab";
   tab.innerText = chatName;
-  tab.onclick = () => switchChat(chatName);
+  tab.onclick = function() { switchChat(chatName); };
   tab.id = `tab-${chatName}`;
   document.getElementById('chatTabs').appendChild(tab);
 
@@ -69,28 +74,26 @@ function openChat() {
     btn.className = "emoji-btn";
     btn.type = "button";
     btn.textContent = e;
-    btn.onclick = () => insertEmoji(chatName, e);
+    btn.onclick = function() { insertEmoji(chatName, e); };
     pickerDiv.appendChild(btn);
   });
 
   // Image upload
-  document.getElementById(`imgInput-${chatName}`).addEventListener('change', (e) =>
-    uploadImage(e, chatName)
-  );
+  document.getElementById(`imgInput-${chatName}`).addEventListener('change', function(e) {
+    uploadImage(e, chatName);
+  });
 
-  // Listen to db messages
-  let chatId = normalize(chatName); // group chat by name
-  db.ref('chats/' + chatId).off();
-  db.ref('chats/' + chatId).on('child_added', function(snapshot) {
+  // Listen for messages
+  db.ref('chats/' + chatName).off();
+  db.ref('chats/' + chatName).on('child_added', function(snapshot) {
     showMessage(chatName, snapshot.val());
   });
 
   switchChat(chatName);
 }
 
-// Highlight/open active chat window
 function switchChat(chatName) {
-  openChats.forEach(name => {
+  openChats.forEach(function(name) {
     document.getElementById(`chat-${name}`).classList.remove('active');
     document.getElementById(`tab-${name}`).classList.remove('active');
   });
@@ -98,7 +101,7 @@ function switchChat(chatName) {
   document.getElementById(`tab-${chatName}`).classList.add('active');
 }
 
-// Emoji picker functions, one per chat
+// Emoji picker functions
 function toggleEmojiPicker(chat) {
   const pickerDiv = document.getElementById(`emojiPicker-${chat}`);
   if (!pickerDiv) return;
@@ -111,7 +114,7 @@ function insertEmoji(chat, emoji) {
   inp.focus();
 }
 window.addEventListener('click', function(e) {
-  openChats.forEach(chat => {
+  openChats.forEach(function(chat) {
     const pickerDiv = document.getElementById(`emojiPicker-${chat}`);
     if (pickerDiv && !pickerDiv.contains(e.target) && (!e.target.className || !e.target.className.includes('emoji-btn'))) {
       pickerDiv.style.display = "none";
@@ -124,23 +127,23 @@ function makeSessionKey(chat) {
   return btoa(chat + "_secret");
 }
 function encryptMessage(text, key) {
-  return btoa(unescape(encodeURIComponent(text)).split('').map((c, i) =>
-    String.fromCharCode(c.charCodeAt(0) ^ key.charCodeAt(i % key.length))
-  ).join(''));
+  return btoa(unescape(encodeURIComponent(text)).split('').map(function(c, i) {
+    return String.fromCharCode(c.charCodeAt(0) ^ key.charCodeAt(i % key.length));
+  }).join(''));
 }
 function decryptMessage(enc, key) {
   let text = atob(enc);
-  return decodeURIComponent(escape(text.split('').map((c, i) =>
-    String.fromCharCode(c.charCodeAt(0) ^ key.charCodeAt(i % key.length))
-  ).join('')));
+  return decodeURIComponent(escape(text.split('').map(function(c, i) {
+    return String.fromCharCode(c.charCodeAt(0) ^ key.charCodeAt(i % key.length));
+  }).join('')));
 }
 
 function sendMessage(chat) {
   const inp = document.getElementById(`msgInput-${chat}`);
   if (!inp.value) return;
-  const key = makeSessionKey(normalize(chat));
+  const key = makeSessionKey(chat);
   const encrypted = encryptMessage(inp.value, key);
-  db.ref('chats/' + normalize(chat)).push({
+  db.ref('chats/' + chat).push({
     from: myUsername,
     message: encrypted,
     type: 'text'
@@ -156,7 +159,7 @@ function showMessage(chat, data) {
   if (data.type === 'image') {
     content = `<div class="msg-image"><img src="${data.url}" alt="Image"></div>`;
   } else {
-    const text = decryptMessage(data.message, makeSessionKey(normalize(chat)));
+    const text = decryptMessage(data.message, makeSessionKey(chat));
     content = `<span class="msg-bubble">${text}</span>`;
   }
   div.innerHTML = `<span class="msg-name">${data.from}</span>${content}`;
@@ -168,16 +171,15 @@ function showMessage(chat, data) {
 function uploadImage(e, chat) {
   const file = e.target.files[0];
   if (!file) return;
-  const chatId = normalize(chat);
-  const ref = storage.ref(`images/${chatId}/${Date.now()}_${file.name}`);
-  ref.put(file).then(snapshot => {
-    ref.getDownloadURL().then(url => {
-      db.ref('chats/' + chatId).push({
+  const ref = storage.ref(`images/${chat}/${Date.now()}_${file.name}`);
+  ref.put(file).then(function(snapshot) {
+    ref.getDownloadURL().then(function(url) {
+      db.ref('chats/' + chat).push({
         from: myUsername,
         type: 'image',
         url: url
       });
     });
   });
-  e.target.value = ""; // Reset so same file can be sent again if needed
+  e.target.value = "";
 }
