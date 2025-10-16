@@ -1,14 +1,16 @@
+// Your Firebase config (make sure this matches your Firebase Console!)
 const firebaseConfig = {
   apiKey: "AIzaSyAXPwge9me10YI38WFSIOQ1Lr-IzKrbUHA",
   authDomain: "pted-chat1.firebaseapp.com",
   databaseURL: "https://pted-chat1-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "pted-chat1",
-  storageBucket: "pted-chat1.appspot.com", // <-- FIXED!
+  storageBucket: "pted-chat1.appspot.com",
   messagingSenderId: "27789922441",
   appId: "1:27789922441:web:9a196f0040b64b2a2ff658",
   measurementId: "G-QXV6238N0P"
 };
 
+// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
@@ -25,16 +27,20 @@ function login() {
 function startChat() {
   friendUsername = document.getElementById('friendUsername').value.trim();
   if (!friendUsername) { alert("Enter your friend's username!"); return; }
-  chatId = [myUsername, friendUsername].sort().join('_');  // same chatId for both users
+  chatId = [myUsername, friendUsername].sort().join('_'); // same for both users if order matched
   document.getElementById('chatSection').style.display = "block";
   document.getElementById('chatFriend').innerText = friendUsername;
   sessionKey = makeSessionKey(myUsername, friendUsername);
+  db.ref('chats/' + chatId).off(); // remove previous listeners to prevent duplicate messages
   db.ref('chats/' + chatId).on('child_added', function(snapshot) {
     showMessage(snapshot.val());
   });
 }
 
-function makeSessionKey(a, b) { return btoa(a + "_" + b + "_secret"); }
+// Simple (demo) session key—do NOT use for real production; use strong crypto!
+function makeSessionKey(a, b) { 
+  return btoa(a.trim().toLowerCase() + "_" + b.trim().toLowerCase() + "_secret"); 
+}
 
 function encryptMessage(text, key) {
   return btoa(text.split('').map((c, i) =>
