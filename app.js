@@ -179,6 +179,7 @@ window.insertEmoji = function(chat, emoji) {
 };
 
 window.sendMessage = async function(chat) {
+   console.log("[sendMessage] myUsername:", myUsername, "peerUsername:", peerUsername);
   const inp = document.getElementById(`msgInput-${chat}`);
   if (!inp.value) return;
 
@@ -216,7 +217,9 @@ window.sendMessage = async function(chat) {
 
 
 async function showMessage(chat, msgKey, data) {
-  let text = "[decryption failed]";
+  let encKey = (myUsername < peerUsername) ? data.sessionKeyForA : data.sessionKeyForB;
+console.log("Trying to decrypt", msgKey, "with encKey", encKey, "myUsername", myUsername, "peerUsername", peerUsername);
+let text = "[decryption failed]";
   try {
     // Select encrypted session key based on username sort order
     let encKey = (myUsername < peerUsername) ? data.sessionKeyForA : data.sessionKeyForB;
