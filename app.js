@@ -182,31 +182,47 @@ window.sendMessage = async function(chat) {
   const inp = document.getElementById(`msgInput-${chat}`);
   if (!inp.value) return;
 
-  // ROTATE SESSION KEY: generate a new session key on every sent message
-  sessionKey = await generateSessionKey();
-  let encKey = await encryptSessionKeyForPeer(sessionKey, peerPubKey);
-  await db.ref('sessionkeys/' + chat).set({ encrypted: encKey, who: myUsername });
+  // ROTATE SESSION KEY: generate a new session key
+  let newSessionKey = await generateSessionKey();
+  let encKeyForMe = await encryptSessionKeyForPeer(newSessionKey, myKeyPair.publicKey);
+  let encKeyForPeer = await encryptSessionKeyForPeer(newSessionKey, peerPubKey);
 
   let plain = inp.value;
-  let enc = await encryptMessage(plain, sessionKey);
+  let enc = await encryptMessage(plain, newSessionKey);
+
+  // Store both encrypted keys with the message
   await db.ref('chats/' + chat).push({
     ...enc,
     from: myUsername,
     starred: {},
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    sessionKeyForA: myUsername < peerUsername ? encKeyForMe : encKeyForPeer,
+    sessionKeyForB: myUsername < peerUsername ? encKeyForPeer : encKeyForMe
   });
+
+  // locally update for next message
+  sessionKey = newSessionKey;
+
   inp.value = "";
 };
 
 
+
 async function showMessage(chat, msgKey, data) {
-  let text;
-  if (data.ct && data.iv && sessionKey) {
-    try { text = await decryptMessage(data, sessionKey); }
-    catch { text = "[decryption failed]"; }
-  } else if (data.message) {
-    text = (data.message);
-  } else { text = "[Invalid message format]"; }
+  let text = "[decryption failed]";
+  try {
+    // Select encrypted session key based on username sort order
+    let encKey = (myUsername < peerUsername) ? data.sessionKeyForA : data.sessionKeyForB;
+
+    if (encKey && data.ct && data.iv) {
+      let thisMsgSessionKey = await decryptSessionKeyForMe(encKey, myKeyPair.privateKey);
+      text = await decryptMessage(data, thisMsgSessionKey);
+    } else if (data.message) {
+      text = data.message;
+    }
+  } catch (e) {
+    text = "[decryption failed]";
+  }
 
   const box = document.getElementById(`chatBox-${chat}`);
   if (!box) return;
@@ -215,20 +231,22 @@ async function showMessage(chat, msgKey, data) {
   const div = document.createElement('div');
   div.className = "message" + (data.from === myUsername ? " me" : "");
   div.id = `msg-${msgKey}`;
+
   let actions = "";
   if (data.from === myUsername) {
     actions = `<span class="msg-actions">
         <button class="action-btn" onclick="editMessage('${chat}','${msgKey}')">Edit</button>
         <button class="action-btn" onclick="deleteForMe('${chat}','${msgKey}')">Delete for Me</button>
         <button class="action-btn" onclick="deleteMessage('${chat}','${msgKey}')">Delete for Everyone</button>
-        <span class="star-btn" onclick="starMessage('${chat}','${msgKey}')" title="Starred">${data.starred&&data.starred[myUsername]?'★':'☆'}</span>
+        <span class="star-btn" onclick="starMessage('${chat}','${msgKey}')" title="Starred">${data.starred && data.starred[myUsername] ? '★' : '☆'}</span>
       </span>`;
   }
-  let localTime = new Date(data.timestamp||0).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
+  let localTime = new Date(data.timestamp || 0).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   let time = `<span class="time-stamp">${localTime}</span>`;
   div.innerHTML = `<span class="msg-name">${data.from}</span><span class="msg-bubble">${text}</span>${time}${actions}`;
   box.appendChild(div); box.scrollTop = box.scrollHeight;
 
+  // Live star updates
   db.ref(`chats/${chat}/${msgKey}`).on('value', function(snap) {
     const d = snap.val();
     if (!d) return;
@@ -244,6 +262,7 @@ async function showMessage(chat, msgKey, data) {
     }
   });
 }
+
 
 window.editMessage = function(chat, msgKey) {
   const msgDiv = document.getElementById(`msg-${msgKey}`);
