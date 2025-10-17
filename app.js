@@ -53,7 +53,7 @@ async function decryptMessage(obj, sessionKey) {
 
 let myUsername = "", peerUsername = "", sessionKey = null;
 let myKeyPair = null, myPubB64 = null, myPrivJwk = null, peerPubKey = null;
-let chatName = null, hideForMe = {};
+let hideForMe = {};
 const emojiList = "😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😜 🤪 😝 😛 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶".split(" ");
 
 window.toggleTheme = function() {
@@ -90,14 +90,13 @@ window.login = async function() {
 window.openChat = async function() {
   peerUsername = normalize(document.getElementById('chatName').value);
   if (!peerUsername) return alert("Enter friend's username!");
-  chatName = [myUsername, peerUsername].sort().join("_");
+  let chatName = [myUsername, peerUsername].sort().join("_");
   let peerSnap = await db.ref('pubkeys/' + peerUsername).once('value');
   if (!peerSnap.exists() || !peerSnap.val().pub) {
     alert("Cannot fetch peer public key. Make sure the other user is registered."); return;
   }
   peerPubKey = await importPubKey(peerSnap.val().pub);
 
-  // Session key: always fetched before first message. After every message, rotated.
   let sessRef = db.ref('sessionkeys/' + chatName);
   let sessSnap = await sessRef.once('value');
   let sessData = sessSnap.val();
@@ -113,11 +112,6 @@ window.openChat = async function() {
 
   db.ref('chats/' + chatName).off();
   db.ref('chats/' + chatName).on('child_added', async function(snapshot) {
-    // Fetch session key each time if changed
-    let sessDataUpd = (await db.ref('sessionkeys/' + chatName).once('value')).val();
-    if (sessDataUpd && sessDataUpd.encrypted) {
-      sessionKey = await decryptSessionKeyForMe(sessDataUpd.encrypted, myKeyPair.privateKey);
-    }
     await showMessage(chatName, snapshot.key, snapshot.val());
   });
   db.ref('chats/' + chatName).on('child_removed', function(snapshot) {
@@ -169,6 +163,7 @@ function setupChatWindow(chatName) {
 }
 
 window.showSessionKey = async function() {
+  if (!sessionKey) { alert("No session key yet! Open a chat first."); return; }
   let exported = await exportSessionKey(sessionKey);
   alert("Session key (base64): " + exported);
 };
@@ -183,12 +178,11 @@ window.insertEmoji = function(chat, emoji) {
   document.getElementById(`emojiPicker-${chat}`).style.display = "none"; inp.focus();
 };
 
-// --- ROTATING SESSION KEY ---
 window.sendMessage = async function(chat) {
   const inp = document.getElementById(`msgInput-${chat}`);
   if (!inp.value) return;
 
-  // NEW ROTATING SESSION KEY
+  // ROTATE SESSION KEY: generate a new session key on every sent message
   sessionKey = await generateSessionKey();
   let encKey = await encryptSessionKeyForPeer(sessionKey, peerPubKey);
   await db.ref('sessionkeys/' + chat).set({ encrypted: encKey, who: myUsername });
@@ -203,6 +197,7 @@ window.sendMessage = async function(chat) {
   });
   inp.value = "";
 };
+
 
 async function showMessage(chat, msgKey, data) {
   let text;
