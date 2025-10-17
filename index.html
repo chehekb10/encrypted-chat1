@@ -18,20 +18,20 @@
     <main>
       <section id="loginSection" class="fadeIn">
         <h2 style="margin-bottom:1em;"><span style="font-size:1.5em;vertical-align:middle;">👤</span> Enter Username</h2>
-        <input type="text" id="myUsername" maxlength="20" placeholder="Type your username...">
+        <input type="text" id="myUsername" maxlength="20" class="ultra-input" placeholder="Type your username...">
         <button onclick="login()" class="main-btn">Login</button>
       </section>
       <section id="userSection" style="display:none;">
         <h2 id="chatTitle">New Chat</h2>
-        <select id="chatType" class="selector" onchange="updateChatOption()">
+        <select id="chatType" class="selector ultra-input" onchange="updateChatOption()">
           <option value="personal">Personal Chat</option>
           <option value="group">Group Chat</option>
         </select>
-        <input type="text" id="chatName" maxlength="30" placeholder="Enter friend's username...">
+        <input type="text" id="chatName" maxlength="30" class="ultra-input" placeholder="Enter friend's username...">
         <button id="openChatBtn" onclick="openChat()" class="main-btn">Start Personal Chat</button>
         <div class="read-opt">
           <label>
-            <input type="checkbox" id="readReceipts" checked onchange="toggleReadReceipts()"> 
+            <input type="checkbox" id="readReceipts" checked onchange="toggleReadReceipts()">
             Enable Read Receipts
           </label>
         </div>
