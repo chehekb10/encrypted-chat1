@@ -290,10 +290,29 @@ window.editMessage = function(chat, msgKey) {
   };
 };
 async function finishEdit(msgDiv, chat, msgKey, newText) {
-  let enc = await encryptMessage(newText, sessionKey);
+  // Generate and rotate session key for edited message
+  let newSessionKey = await generateSessionKey();
+  let encKeyForMe = await encryptSessionKeyForPeer(newSessionKey, myKeyPair.publicKey);
+  let encKeyForPeer = await encryptSessionKeyForPeer(newSessionKey, peerPubKey);
+
+  let sessionKeyFields = {};
+  if (myUsername < peerUsername) {
+    sessionKeyFields.sessionKeyForA = encKeyForMe;
+    sessionKeyFields.sessionKeyForB = encKeyForPeer;
+  } else {
+    sessionKeyFields.sessionKeyForA = encKeyForPeer;
+    sessionKeyFields.sessionKeyForB = encKeyForMe;
+  }
+
+  let enc = await encryptMessage(newText, newSessionKey);
+
+  // Update all necessary fields in the existing message
   await db.ref(`chats/${chat}/${msgKey}/ct`).set(enc.ct);
   await db.ref(`chats/${chat}/${msgKey}/iv`).set(enc.iv);
+  await db.ref(`chats/${chat}/${msgKey}/sessionKeyForA`).set(sessionKeyFields.sessionKeyForA);
+  await db.ref(`chats/${chat}/${msgKey}/sessionKeyForB`).set(sessionKeyFields.sessionKeyForB);
 }
+
 
 window.deleteForMe = function(chat, msgKey) {
   hideForMe[chat] = hideForMe[chat] || {};
