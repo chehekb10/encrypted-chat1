@@ -1,5 +1,3 @@
-// Firebase initialization and E2EE helpers remain unchanged
-
 const firebaseConfig = {
   apiKey: "AIzaSyAXPwge9me10YI38WFSIOQ1Lr-IzKrbUHA",
   authDomain: "pted-chat1.firebaseapp.com",
@@ -12,6 +10,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
+// --- E2EE crypto utilities ---
 function bufToB64(buffer) { return btoa(String.fromCharCode.apply(null, new Uint8Array(buffer))); }
 function b64ToBuf(str) { return Uint8Array.from(atob(str), c => c.charCodeAt(0)); }
 async function generateKeyPair() {
@@ -26,52 +25,34 @@ async function exportPubKey(key) {
 }
 async function exportPrivJwk(key) { return await window.crypto.subtle.exportKey("jwk", key); }
 async function importPrivKey(jwk) {
-  return await window.crypto.subtle.importKey(
-    "jwk", jwk, {name:"RSA-OAEP", hash:"SHA-256"}, true, ["decrypt"]
-  );
+  return await window.crypto.subtle.importKey("jwk", jwk, {name:"RSA-OAEP", hash:"SHA-256"}, true, ["decrypt"]);
 }
 async function importPubKey(b64) {
-  return await window.crypto.subtle.importKey(
-    "spki", b64ToBuf(b64), {name:"RSA-OAEP", hash:"SHA-256"}, true, ["encrypt"]
-  );
+  return await window.crypto.subtle.importKey("spki", b64ToBuf(b64), {name:"RSA-OAEP", hash:"SHA-256"}, true, ["encrypt"]);
 }
-async function generateSessionKey() {
-  return await window.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
-}
-async function exportSessionKey(key) {
-  let raw = await window.crypto.subtle.exportKey("raw", key); return bufToB64(raw);
-}
-async function importSessionKey(b64) {
-  return await window.crypto.subtle.importKey( "raw", b64ToBuf(b64), {name:"AES-GCM"}, false, ["encrypt","decrypt"] );
-}
+async function generateSessionKey() { return await window.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]); }
+async function exportSessionKey(key) { let raw = await window.crypto.subtle.exportKey("raw", key); return bufToB64(raw);}
+async function importSessionKey(b64) { return await window.crypto.subtle.importKey("raw", b64ToBuf(b64), {name:"AES-GCM"}, false, ["encrypt","decrypt"]); }
 async function encryptSessionKeyForPeer(sessionKey, peerPubKey) {
   let keyRaw = await window.crypto.subtle.exportKey("raw", sessionKey);
   return bufToB64(await window.crypto.subtle.encrypt({name:"RSA-OAEP"}, peerPubKey, keyRaw));
 }
 async function decryptSessionKeyForMe(encKey, myPrivKey) {
-  let decrypted = await window.crypto.subtle.decrypt(
-    {name:"RSA-OAEP"}, myPrivKey, b64ToBuf(encKey)
-  );
-  return await window.crypto.subtle.importKey(
-    "raw", decrypted, {name:"AES-GCM"}, false, ["encrypt","decrypt"]
-  );
+  let decrypted = await window.crypto.subtle.decrypt({name:"RSA-OAEP"}, myPrivKey, b64ToBuf(encKey));
+  return await window.crypto.subtle.importKey("raw", decrypted, {name:"AES-GCM"}, false, ["encrypt","decrypt"]);
 }
 async function encryptMessage(text, sessionKey) {
   let iv = window.crypto.getRandomValues(new Uint8Array(12));
-  let enc = await window.crypto.subtle.encrypt(
-    {name: "AES-GCM", iv}, sessionKey, new TextEncoder().encode(text)
-  );
+  let enc = await window.crypto.subtle.encrypt({name: "AES-GCM", iv}, sessionKey, new TextEncoder().encode(text));
   return { iv: bufToB64(iv), ct: bufToB64(enc) };
 }
 async function decryptMessage(obj, sessionKey) {
   let buf = b64ToBuf(obj.ct), ivBuf = b64ToBuf(obj.iv);
-  let dec = await window.crypto.subtle.decrypt(
-    {name: "AES-GCM", iv: ivBuf}, sessionKey, buf
-  );
+  let dec = await window.crypto.subtle.decrypt({name: "AES-GCM", iv: ivBuf}, sessionKey, buf);
   return new TextDecoder().decode(dec);
 }
 
-// ----- App State -----
+// --- State
 let myUsername = "", peerUsername = "", sessionKey = null;
 let myKeyPair = null, myPubB64 = null, myPrivJwk = null, peerPubKey = null;
 let receiptOn = true, hideForMe = {};
@@ -126,21 +107,26 @@ window.openChat = async function() {
   }
   peerPubKey = await importPubKey(peerSnap.val().pub);
 
-  let sessRef = db.ref('sessionkeys/' + chatName + '/' + myUsername);
+  // Unified session key coordination: only one key per chat; whoever is first alphabetically creates it
+  let sessRef = db.ref('sessionkeys/' + chatName);
   let sessSnap = await sessRef.once('value');
-  if (sessSnap.exists() && sessSnap.val().encrypted && sessSnap.val().who == peerUsername) {
-    sessionKey = await decryptSessionKeyForMe(sessSnap.val().encrypted, myKeyPair.privateKey);
+  let sessData = sessSnap.val();
+  if (sessData && sessData.encrypted && sessData.who !== myUsername) {
+    // Use reasoned key
+    sessionKey = await decryptSessionKeyForMe(sessData.encrypted, myKeyPair.privateKey);
   } else {
+    // Create it if it's not there or if I am the session creator
     sessionKey = await generateSessionKey();
     let encKey = await encryptSessionKeyForPeer(sessionKey, peerPubKey);
-    await sessRef.set({encrypted: encKey, who: myUsername});
+    await sessRef.set({ encrypted: encKey, who: myUsername });
   }
 
   setupChatWindow(chatName);
+
   db.ref('chats/' + chatName).off();
   db.ref('chats/' + chatName).on('child_added', async function(snapshot) {
     await showMessage(chatName, snapshot.key, snapshot.val());
-    // Add message receipt for instant updates
+    // For read receipts
     if (snapshot.val().from && snapshot.val().from !== myUsername && (!snapshot.val().readby || !snapshot.val().readby[myUsername])) {
       db.ref(`chats/${chatName}/${snapshot.key}/readby/${myUsername}`).set(true);
     }
@@ -227,7 +213,7 @@ async function showMessage(chat, msgKey, data) {
   let reactRow = `<span class="reaction-row" id="reactrow-${msgKey}">`;
   allReactions.forEach(re => {
     let selClass = data.reactions && data.reactions[re] && data.reactions[re][myUsername] ? "selected" : "";
-    reactRow += `<button class="react-btn ${selClass}" onclick="reactToMessage('${chat}','${msgKey}','${re}')">${re}${renderReactionCount(data, re)}</button>`;
+    reactRow += `<button class="react-btn ${selClass}" data-emoji="${re}" onclick="reactToMessage('${chat}','${msgKey}','${re}')">${re}${renderReactionCount(data, re)}</button>`;
   });
   reactRow += '</span>';
   let actions = "";
@@ -248,6 +234,30 @@ async function showMessage(chat, msgKey, data) {
   let time = `<span class="time-stamp">${localTime}</span>`;
   div.innerHTML = `<span class="msg-name">${data.from}</span><span class="msg-bubble">${text}</span>${time}${actions}${reactRow}${receipt}`;
   box.appendChild(div); box.scrollTop = box.scrollHeight;
+
+  // --- Live update for reactions and star button ---
+  db.ref(`chats/${chat}/${msgKey}`).on('value', function(snap) {
+    const d = snap.val();
+    if (!d) return;
+    allReactions.forEach(re => {
+      const btn = document.querySelector(`#reactrow-${msgKey} .react-btn[data-emoji='${re}']`);
+      if (btn) {
+        let selClass = d.reactions && d.reactions[re] && d.reactions[re][myUsername] ? "selected" : "";
+        btn.className = "react-btn" + (selClass ? " selected" : "");
+        btn.innerHTML = re + (d.reactions && d.reactions[re] ? ` (${Object.keys(d.reactions[re]).length})` : "");
+      }
+    });
+    const starBtn = document.querySelector(`#msg-${msgKey} .star-btn`);
+    if (starBtn) {
+      if (d.starred && d.starred[myUsername]) {
+        starBtn.classList.add('star-icon');
+        starBtn.textContent = "★";
+      } else {
+        starBtn.classList.remove('star-icon');
+        starBtn.textContent = "☆";
+      }
+    }
+  });
 }
 
 window.reactToMessage = function(chat, msgKey, emoji) {
