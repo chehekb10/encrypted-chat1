@@ -12,12 +12,8 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
 // ----- E2EE Utility -----
-function bufToB64(buffer) {
-  return btoa(String.fromCharCode.apply(null, new Uint8Array(buffer)));
-}
-function b64ToBuf(str) {
-  return Uint8Array.from(atob(str), c => c.charCodeAt(0));
-}
+function bufToB64(buffer) { return btoa(String.fromCharCode.apply(null, new Uint8Array(buffer))); }
+function b64ToBuf(str) { return Uint8Array.from(atob(str), c => c.charCodeAt(0)); }
 async function generateKeyPair() {
   return await window.crypto.subtle.generateKey(
     {name: "RSA-OAEP", modulusLength: 2048, publicExponent: new Uint8Array([1,0,1]), hash: "SHA-256"},
@@ -28,40 +24,27 @@ async function exportPubKey(key) {
   let spki = await window.crypto.subtle.exportKey("spki", key);
   return bufToB64(spki);
 }
-async function exportPrivJwk(key) {
-  return await window.crypto.subtle.exportKey("jwk", key);
-}
+async function exportPrivJwk(key) { return await window.crypto.subtle.exportKey("jwk", key); }
 async function importPrivKey(jwk) {
   return await window.crypto.subtle.importKey(
-    "jwk",
-    jwk,
-    {name:"RSA-OAEP", hash:"SHA-256"},
-    true, ["decrypt"]
+    "jwk", jwk, {name:"RSA-OAEP", hash:"SHA-256"}, true, ["decrypt"]
   );
 }
 async function importPubKey(b64) {
   return await window.crypto.subtle.importKey(
-    "spki",
-    b64ToBuf(b64),
-    {name:"RSA-OAEP", hash:"SHA-256"},
-    true, ["encrypt"]
+    "spki", b64ToBuf(b64), {name:"RSA-OAEP", hash:"SHA-256"}, true, ["encrypt"]
   );
 }
 async function generateSessionKey() {
   return await window.crypto.subtle.generateKey(
-    { name: "AES-GCM", length: 256 },
-    true, ["encrypt", "decrypt"]
+    { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]
   );
 }
 async function exportSessionKey(key) {
-  let raw = await window.crypto.subtle.exportKey("raw", key);
-  return bufToB64(raw);
+  let raw = await window.crypto.subtle.exportKey("raw", key); return bufToB64(raw);
 }
 async function importSessionKey(b64) {
-  return await window.crypto.subtle.importKey(
-    "raw", b64ToBuf(b64),
-    {name:"AES-GCM"}, false, ["encrypt","decrypt"]
-  );
+  return await window.crypto.subtle.importKey( "raw", b64ToBuf(b64), {name:"AES-GCM"}, false, ["encrypt","decrypt"] );
 }
 async function encryptSessionKeyForPeer(sessionKey, peerPubKey) {
   let keyRaw = await window.crypto.subtle.exportKey("raw", sessionKey);
@@ -78,16 +61,14 @@ async function decryptSessionKeyForMe(encKey, myPrivKey) {
 async function encryptMessage(text, sessionKey) {
   let iv = window.crypto.getRandomValues(new Uint8Array(12));
   let enc = await window.crypto.subtle.encrypt(
-    {name: "AES-GCM", iv},
-    sessionKey, new TextEncoder().encode(text)
+    {name: "AES-GCM", iv}, sessionKey, new TextEncoder().encode(text)
   );
   return { iv: bufToB64(iv), ct: bufToB64(enc) };
 }
 async function decryptMessage(obj, sessionKey) {
   let buf = b64ToBuf(obj.ct), ivBuf = b64ToBuf(obj.iv);
   let dec = await window.crypto.subtle.decrypt(
-    {name: "AES-GCM", iv: ivBuf},
-    sessionKey, buf
+    {name: "AES-GCM", iv: ivBuf}, sessionKey, buf
   );
   return new TextDecoder().decode(dec);
 }
@@ -101,8 +82,7 @@ const emojiList = "😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 �
 
 window.toggleTheme = function() {
   document.body.classList.toggle('dark');
-  document.getElementById("themeBtn").innerText =
-    document.body.classList.contains('dark') ? "☀️" : "🌙";
+  document.getElementById("themeBtn").innerText = document.body.classList.contains('dark') ? "☀️" : "🌙";
 };
 
 function normalize(str) { return str.trim().toLowerCase(); }
@@ -110,7 +90,6 @@ function normalize(str) { return str.trim().toLowerCase(); }
 window.login = async function() {
   myUsername = normalize(document.getElementById('myUsername').value);
   if (!myUsername) { alert("Enter a username!"); return; }
-  // Keypair logic: always import BOTH keys when loading from storage
   let storedPriv = window.localStorage.getItem("privkey_"+myUsername);
   let storedPub = window.localStorage.getItem("pubkey_"+myUsername);
   if (storedPriv && storedPub) {
@@ -143,7 +122,6 @@ window.openChat = async function() {
   peerUsername = normalize(document.getElementById('chatName').value);
   if (!peerUsername) return alert("Enter friend's username!");
   let chatName = [myUsername, peerUsername].sort().join("_");
-  // Key exchange: get peer's pubkey
   let peerSnap = await db.ref('pubkeys/' + peerUsername).once('value');
   if (!peerSnap.exists() || !peerSnap.val().pub) {
     alert("Cannot fetch peer public key. Make sure the other user is registered."); return;
@@ -229,9 +207,16 @@ window.sendMessage = async function(chat) {
 };
 
 async function showMessage(chat, msgKey, data) {
+  let text;
+  if (data.ct && data.iv && sessionKey) {
+    try { text = await decryptMessage(data, sessionKey); }
+    catch { text = "[decryption failed]"; }
+  } else if (data.message) {
+    text = (data.message);
+  } else { text = "[Invalid message format]"; }
+
   const box = document.getElementById(`chatBox-${chat}`);
   if (!box) return;
-  let text = sessionKey ? (await decryptMessage(data, sessionKey)) : "Encrypted";
   const div = document.createElement('div');
   div.className = "message" + (data.from === myUsername ? " me" : "");
   div.id = `msg-${msgKey}`;
@@ -285,9 +270,7 @@ window.editMessage = function(chat, msgKey) {
     finished = true;
   };
   inp.onkeydown = function(e) {
-    if (e.key === "Enter") {
-      finishEdit(msgDiv, chat, msgKey, inp.value); finished = true;
-    }
+    if (e.key === "Enter") { finishEdit(msgDiv, chat, msgKey, inp.value); finished = true; }
   };
 };
 async function finishEdit(msgDiv, chat, msgKey, newText) {
