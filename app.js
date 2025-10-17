@@ -1,4 +1,122 @@
-// ... Firebase setup, variables as above ...
+// Firebase E2EE setup
+const firebaseConfig = {
+  apiKey: "AIzaSyAXPwge9me10YI38WFSIOQ1Lr-IzKrbUHA",
+  authDomain: "pted-chat1.firebaseapp.com",
+  databaseURL: "https://pted-chat1-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "pted-chat1",
+  storageBucket: "pted-chat1.appspot.com",
+  messagingSenderId: "27789922441",
+  appId: "1:27789922441:web:9a196f0040b64b2a2ff658",
+  measurementId: "G-QXV6238N0P"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+let myUsername = "";
+let peerUsername = "";
+let sessionKey = null;
+let myKeyPair = null;
+let myPubB64 = null;
+let myPrivJwk = null;
+let peerPubKey = null;
+let receiptOn = true;
+
+function bufToB64(buffer) {
+  return btoa(String.fromCharCode.apply(null, new Uint8Array(buffer)));
+}
+function b64ToBuf(str) {
+  return Uint8Array.from(atob(str), c => c.charCodeAt(0));
+}
+
+// --- Keypair and Session Key Management ---
+
+async function generateKeyPair() {
+  let keyPair = await window.crypto.subtle.generateKey(
+    {name: "RSA-OAEP", modulusLength: 2048, publicExponent: new Uint8Array([1,0,1]), hash: "SHA-256"},
+    true,
+    ["encrypt", "decrypt"]
+  );
+  return keyPair;
+}
+async function exportPubKey(key) {
+  let spki = await window.crypto.subtle.exportKey("spki", key);
+  return bufToB64(spki);
+}
+async function exportPrivJwk(key) {
+  return await window.crypto.subtle.exportKey("jwk", key);
+}
+async function importPrivKey(jwk) {
+  return await window.crypto.subtle.importKey(
+    "jwk",
+    jwk,
+    {name:"RSA-OAEP", hash:"SHA-256"},
+    true,
+    ["decrypt"]
+  );
+}
+async function importPubKey(b64) {
+  return await window.crypto.subtle.importKey(
+    "spki",
+    b64ToBuf(b64),
+    {name:"RSA-OAEP", hash:"SHA-256"},
+    true,
+    ["encrypt"]
+  );
+}
+async function generateSessionKey() {
+  return await window.crypto.subtle.generateKey(
+    { name: "AES-GCM", length: 256 },
+    true,
+    ["encrypt", "decrypt"]
+  );
+}
+async function exportSessionKey(key) {
+  let raw = await window.crypto.subtle.exportKey("raw", key);
+  return bufToB64(raw);
+}
+async function importSessionKey(b64) {
+  return await window.crypto.subtle.importKey(
+    "raw", b64ToBuf(b64),
+    {name:"AES-GCM"}, false, ["encrypt","decrypt"]
+  );
+}
+async function encryptSessionKeyForPeer(sessionKey, peerPubKey) {
+  let keyRaw = await window.crypto.subtle.exportKey("raw", sessionKey);
+  return bufToB64(await window.crypto.subtle.encrypt({name:"RSA-OAEP"}, peerPubKey, keyRaw));
+}
+async function decryptSessionKeyForMe(encKey, myPrivKey) {
+  let decrypted = await window.crypto.subtle.decrypt(
+    {name:"RSA-OAEP"},
+    myPrivKey,
+    b64ToBuf(encKey)
+  );
+  return await window.crypto.subtle.importKey(
+    "raw", decrypted,
+    {name:"AES-GCM"}, false, ["encrypt","decrypt"]
+  );
+}
+async function encryptMessage(text, sessionKey) {
+  let iv = window.crypto.getRandomValues(new Uint8Array(12));
+  let enc = await window.crypto.subtle.encrypt(
+    {name: "AES-GCM", iv},
+    sessionKey,
+    new TextEncoder().encode(text)
+  );
+  return {
+    iv: bufToB64(iv),
+    ct: bufToB64(enc),
+  };
+}
+async function decryptMessage(obj, sessionKey) {
+  let buf = b64ToBuf(obj.ct);
+  let ivBuf = b64ToBuf(obj.iv);
+  let dec = await window.crypto.subtle.decrypt(
+    {name: "AES-GCM", iv: ivBuf},
+    sessionKey,
+    buf
+  );
+  return new TextDecoder().decode(dec);
+}
 
 window.toggleTheme = function() {
   const btn = document.getElementById("themeBtn");
@@ -13,14 +131,6 @@ window.toggleTheme = function() {
   }
 };
 
-window.updateChatOption = function() {
-  const chatType = document.getElementById('chatType').value;
-  const chatName = document.getElementById('chatName');
-  const openChatBtn = document.getElementById('openChatBtn');
-  chatName.placeholder = chatType === "personal" ? "Type friend's username..." : "Type group name...";
-  openChatBtn.textContent = chatType === "personal" ? "Start Personal Chat" : "Join Group Chat";
-};
-
 window.toggleReadReceipts = function() {
   receiptOn = document.getElementById('readReceipts').checked;
   document.querySelectorAll('.read-receipt').forEach(el => {
@@ -28,118 +138,108 @@ window.toggleReadReceipts = function() {
   });
 };
 
-window.login = function() {
+function normalize(str) { return str.trim().toLowerCase(); }
+
+window.login = async function() {
   myUsername = normalize(document.getElementById('myUsername').value);
   if (!myUsername) { alert("Enter a username!"); return; }
+  // Keypair generation and save (simulate localStorage persistence)
+  let storedPriv = window.localStorage.getItem("privkey_"+myUsername);
+  if (storedPriv) {
+    myPrivJwk = JSON.parse(storedPriv);
+    myKeyPair = {publicKey: null, privateKey: await importPrivKey(myPrivJwk)};
+  } else {
+    myKeyPair = await generateKeyPair();
+    myPrivJwk = await exportPrivJwk(myKeyPair.privateKey);
+    window.localStorage.setItem("privkey_" + myUsername, JSON.stringify(myPrivJwk));
+  }
+  myPubB64 = await exportPubKey(myKeyPair.publicKey? myKeyPair.publicKey : myKeyPair.privateKey);
+  // Publish own public key for others
+  await db.ref('pubkeys/' + myUsername).set({pub: myPubB64});
+
   document.getElementById('loginSection').style.display = "none";
   document.getElementById('userSection').style.display = "block";
+  document.getElementById('myUsername').disabled = true;
 };
 
-window.openChat = function() { /* same as previous, compatible with above layout */ };
+window.openChat = async function() {
+  peerUsername = normalize(document.getElementById('chatName').value);
+  if (!peerUsername) return alert("Enter friend's username!");
+  let chatName = [myUsername, peerUsername].sort().join("_");
+  // Key exchange
+  let peerSnap = await db.ref('pubkeys/' + peerUsername).once('value');
+  if (!peerSnap.exists() || !peerSnap.val().pub) {
+    alert("Cannot fetch peer public key. Make sure the other user is registered."); return;
+  }
+  peerPubKey = await importPubKey(peerSnap.val().pub);
 
-// --- rest of handlers as previously given ---
+  // SESSION KEY
+  // 1. Check if session key exchange exists (from peer or self)
+  let sessRef = db.ref('sessionkeys/' + chatName + '/' + myUsername);
+  let sessSnap = await sessRef.once('value');
+  if (sessSnap.exists() && sessSnap.val().encrypted && sessSnap.val().who == peerUsername) {
+    // Peer provided it: decrypt with my private key
+    sessionKey = await decryptSessionKeyForMe(sessSnap.val().encrypted, myKeyPair.privateKey);
+  } else {
+    // Generate, encrypt for peer, upload
+    sessionKey = await generateSessionKey();
+    let encKey = await encryptSessionKeyForPeer(sessionKey, peerPubKey);
+    await sessRef.set({encrypted: encKey, who: myUsername});
+  }
 
-window.showMessage = function(chat, msgKey, data) {
-  if ((hideForMe[chat] && hideForMe[chat][msgKey])) return;
+  // Setup UI
+  document.getElementById("chatTabs").innerHTML = "";
+  let chatWin = document.createElement('div');
+  chatWin.className = "chat-window active";
+  chatWin.id = `chat-${chatName}`;
+  chatWin.innerHTML = `
+    <div class="chat-header"><span>${chatName}</span></div>
+    <div class="typing-indicator" id="typing-${chatName}" style="display:none;"></div>
+    <div class="chat-box" id="chatBox-${chatName}"></div>
+    <div class="input-row" style="margin-top:.6em;">
+      <input type="text" style="width:73%;display:inline-block;vertical-align:middle;" placeholder="Type a message..." id="msgInput-${chatName}">
+      <button class="main-btn" style="width:23%;font-size:1em;padding:.45em 1em;display:inline-block;vertical-align:middle;" onclick="sendMessage('${chatName}')">Send</button>
+    </div>
+  `;
+  document.getElementById('chatWindows').innerHTML = "";
+  document.getElementById('chatWindows').appendChild(chatWin);
+
+  db.ref('chats/' + chatName).off();
+  db.ref('chats/' + chatName).on('child_added', async function(snapshot) {
+    await showMessage(chatName, snapshot.key, snapshot.val());
+    // Delete message as soon as you receive and decrypt (for demo; production: only when delivery confirmed)
+    await db.ref('chats/' + chatName + '/' + snapshot.key).remove();
+  });
+};
+
+window.showSessionKey = async function() {
+  if (!sessionKey) { alert("No session key yet! Open a chat first."); return; }
+  let exported = await exportSessionKey(sessionKey);
+  alert("Session key (base64): " + exported);
+};
+
+window.sendMessage = async function(chat) {
+  const inp = document.getElementById(`msgInput-${chat}`);
+  if (!inp.value) return;
+  let plain = inp.value;
+  let enc = await encryptMessage(plain, sessionKey);
+  await db.ref('chats/' + chat).push(enc);
+  inp.value = "";
+};
+
+async function showMessage(chat, msgKey, data) {
   const box = document.getElementById(`chatBox-${chat}`);
-  if (document.getElementById(`msg-${msgKey}`)) return;
+  // Only try to decrypt if session key available
+  let text = sessionKey ? (await decryptMessage(data, sessionKey)) : "Encrypted";
   const div = document.createElement('div');
-  div.className = "message" + (data.from === myUsername ? " me" : "");
-  div.id = `msg-${msgKey}`;
-  let content = `<span class="msg-bubble">${decryptMessage(data.message, makeSessionKey(chat))}</span>`;
+  div.className = "message me";
+  div.innerHTML = `<span class="msg-bubble">${text}</span>
+      <span class="time-stamp">${new Date().toLocaleTimeString()}</span>`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
 
-  let receipt = "";
-  let isPersonalChat = chat.includes("_");
-  let recipients = getChatUsers(chat, data, true);
-  let reactRow = `<span class="reaction-row" id="reactrow-${msgKey}">`;
-  allReactions.forEach(re => {
-    let selClass = data.reactions && data.reactions[re] && data.reactions[re][myUsername] ? "selected" : "";
-    reactRow += `<button class="react-btn ${selClass}" data-emoji='${re}' onclick="reactToMessage('${chat}','${msgKey}','${re}')">${re}${renderReactionCount(data, re)}</button>`;
-  });
-  reactRow += '</span>';
-
-  if (data.from === myUsername && receiptOn) {
-    let readKeys = Object.keys(data.readby||{}).filter(u => u !== myUsername);
-    let bothDelivered = isPersonalChat && recipients.length >= 2 && readKeys.length >= 1;
-    let bothSeen = isPersonalChat && recipients.length >= 2 &&
-      readKeys.length >= 1 && data.readby[recipients.find(r=>r!==myUsername)];
-    if (!bothDelivered) {
-      receipt = `<span class="read-receipt" style="color:#bbb">✔</span>`;
-    } else if (bothSeen) {
-      receipt = `<span class="read-receipt" style="color:#3259ff">✔✔</span>`;
-    } else {
-      receipt = `<span class="read-receipt" style="color:#bbb">✔✔</span>`;
-    }
-  }
-
-  let starredClass = data.starred && data.starred[myUsername] ? 'star-icon' : '';
-  let showActions = data.from === myUsername;
-  let actions = "";
-  if (showActions) {
-    actions = `<span class="msg-actions">
-        <button class="action-btn" onclick="editMessage('${chat}','${msgKey}')">Edit</button>
-        <button class="action-btn" onclick="deleteForMe('${chat}','${msgKey}')">Delete for Me</button>
-        <button class="action-btn" onclick="deleteMessage('${chat}','${msgKey}')">Delete for Everyone</button>
-        <span class="star-btn ${starredClass}" onclick="starMessage('${chat}','${msgKey}')" title="Starred">${data.starred&&data.starred[myUsername]?'★':'☆'}</span>
-      </span>`;
-  }
-
-  let localTime = new Date(data.timestamp||0).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
-  let time = `<span class="time-stamp">${localTime}</span>`;
-
-  div.innerHTML = `<span class="msg-name">${data.from}${data.starred&&data.starred[myUsername]?'<span class="star-icon"> ★</span>':''}</span>${content}${time}${actions}${reactRow}${receipt}`;
-  box.appendChild(div); box.scrollTop = box.scrollHeight;
-
-  db.ref(`chats/${chat}/${msgKey}`).on('value', function(snap) {
-    const data = snap.val();
-    if (!data) return;
-    allReactions.forEach(re => {
-      const btn = document.querySelector(`#reactrow-${msgKey} .react-btn[data-emoji='${re}']`);
-      if (btn) {
-        let selClass = data.reactions && data.reactions[re] && data.reactions[re][myUsername] ? "selected" : "";
-        btn.className = "react-btn" + (selClass ? " selected" : "");
-        btn.innerHTML = re + (data.reactions && data.reactions[re] ? ` (${Object.keys(data.reactions[re]).length})` : "");
-      }
-    });
-    const starBtn = document.querySelector(`#msg-${msgKey} .star-btn`);
-    if (starBtn) {
-      if (data.starred && data.starred[myUsername]) {
-        starBtn.classList.add('star-icon');
-        starBtn.textContent = "★";
-      } else {
-        starBtn.classList.remove('star-icon');
-        starBtn.textContent = "☆";
-      }
-    }
-    // INSTANT receipt refresh
-    if (data.from === myUsername && receiptOn) {
-      let receipt = "";
-      let readKeys = Object.keys(data.readby||{}).filter(u => u !== myUsername);
-      let bothDelivered = isPersonalChat && recipients.length >= 2 && readKeys.length >= 1;
-      let bothSeen = isPersonalChat && recipients.length >= 2 &&
-        readKeys.length >= 1 && data.readby[recipients.find(r=>r!==myUsername)];
-      if (!bothDelivered) {
-        receipt = `<span class="read-receipt" style="color:#bbb">✔</span>`;
-      } else if (bothSeen) {
-        receipt = `<span class="read-receipt" style="color:#3259ff">✔✔</span>`;
-      } else {
-        receipt = `<span class="read-receipt" style="color:#bbb">✔✔</span>`;
-      }
-      const receiptEl = div.querySelector('.read-receipt');
-      if (receiptEl) receiptEl.outerHTML = receipt;
-    }
-  });
-
-  if (data.from !== myUsername && (!data.readby || !data.readby[myUsername]))
-    db.ref(`chats/${chat}/${msgKey}/readby/${myUsername}`).set(true);
+window.onload = function() {
+  document.getElementById("chatTabs").innerHTML = "";
+  document.getElementById("chatWindows").innerHTML = "";
 };
-
-// (other window handlers as previously provided)
-
-window.onload = function() { updateChatOption(); };
-window.addEventListener('click', function(e) {
-  openChats.forEach(function(chat){
-    const pickerDiv = document.getElementById(`emojiPicker-${chat}`);
-    if (pickerDiv && !pickerDiv.contains(e.target) && (!e.target.className || !e.target.className.includes('emoji-btn'))) { pickerDiv.style.display = "none"; }
-  });
-});
