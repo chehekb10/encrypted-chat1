@@ -128,6 +128,26 @@ window.openChat = async function() {
       db.ref(`chats/${chatName}/${snapshot.key}/readby/${myUsername}`).set(true);
     }
   });
+  // Live remove on delete everywhere
+  db.ref('chats/' + chatName).on('child_removed', function(snapshot) {
+    const box = document.getElementById(`msg-${snapshot.key}`);
+    if (box) box.remove();
+  });
+  // Live edit on everyone
+  db.ref('chats/' + chatName).on('child_changed', async function(snapshot) {
+    const box = document.getElementById(`msg-${snapshot.key}`);
+    if (!box) return;
+    let data = snapshot.val();
+    let text = "[decryption failed]";
+    if (data.ct && data.iv && sessionKey) {
+      try { text = await decryptMessage(data, sessionKey); }
+      catch { text = "[decryption failed]"; }
+    } else if (data.message) {
+      text = data.message;
+    }
+    const bubble = box.querySelector('.msg-bubble');
+    if (bubble) bubble.textContent = text;
+  });
 };
 
 function setupChatWindow(chatName) {
@@ -260,15 +280,10 @@ window.editMessage = function(chat, msgKey) {
 };
 async function finishEdit(msgDiv, chat, msgKey, newText) {
   let enc = await encryptMessage(newText, sessionKey);
-  Object.keys(enc).forEach(k => {
-    db.ref(`chats/${chat}/${msgKey}/${k}`).set(enc[k]);
-  });
-  if (msgDiv.querySelector("input[type=text]")) {
-    let el = document.createElement('span');
-    el.className = "msg-bubble"; el.textContent = newText;
-    msgDiv.querySelector("input[type=text]").replaceWith(el);
-  }
+  await db.ref(`chats/${chat}/${msgKey}/ct`).set(enc.ct);
+  await db.ref(`chats/${chat}/${msgKey}/iv`).set(enc.iv);
 }
+
 window.deleteForMe = function(chat, msgKey) {
   hideForMe[chat] = hideForMe[chat] || {};
   hideForMe[chat][msgKey] = true;

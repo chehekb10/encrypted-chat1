@@ -199,6 +199,6 @@ body.dark .message.me { background:#4e7dff;}
 @keyframes fadeout {to{opacity:0;height:0;margin:0;padding:0;}}
 .emoji-picker {display:flex;flex-wrap:wrap;gap:.26em;background:#f1f4fa;border:1px solid #aed1fa;border-radius:1em;padding:.8em;max-width:265px;max-height:80px;font-size:1.6em;margin:.28em 0;box-shadow:0 1px 8px #daeaf852;}
 body.dark .emoji-picker {background:#333a77;color:#bbb;}
-.emoji-btn {font-size:1.6em;background:none;border:none;cursor:pointer;}
+.emoji-btn {font-size:2.1em;background:none;border:none;cursor:pointer;}
 ::-webkit-scrollbar { width:8px;}
 ::-webkit-scrollbar-thumb {background:#b3c9f5;border-radius:4px;}
