@@ -131,7 +131,6 @@ body.dark .main-btn {
   color: #ffe166;
   border:none;
 }
-.read-opt { font-size:1.1em; color:#517;border-radius:.7em;}
 .chat-window { background:#f8fbff; border-radius:1em; margin-bottom:1em;}
 body.dark .chat-window { background:#22284b; color:#fff;}
 .chat-header { font-weight:bold; font-size:1.11em; color:#232848; margin-bottom:.4em;}
@@ -192,7 +191,6 @@ body.dark .message.me { background:#4e7dff;}
   background: #3259ff;
   color: #fff;
 }
-.read-receipt { font-size:1.03em; margin-left:0.41em; color:#3259ff; vertical-align:middle; font-weight:700; letter-spacing:2px; transform:translateY(-2px);}
 .time-stamp {display:block;font-size:.90em;color:#799bf3;opacity:.98;margin-top:.09em;margin-left:.83em;text-align:left;}
 .message.me .time-stamp {text-align:right;margin-left:0;margin-right:.83em;color:#b8dcfa;}
 .delete-anim {animation:fadeout .29s forwards;}

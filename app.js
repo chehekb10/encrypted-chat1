@@ -10,7 +10,6 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// --- E2EE crypto utilities ---
 function bufToB64(buffer) { return btoa(String.fromCharCode.apply(null, new Uint8Array(buffer))); }
 function b64ToBuf(str) { return Uint8Array.from(atob(str), c => c.charCodeAt(0)); }
 async function generateKeyPair() {
@@ -52,10 +51,9 @@ async function decryptMessage(obj, sessionKey) {
   return new TextDecoder().decode(dec);
 }
 
-// --- State
 let myUsername = "", peerUsername = "", sessionKey = null;
 let myKeyPair = null, myPubB64 = null, myPrivJwk = null, peerPubKey = null;
-let receiptOn = true, hideForMe = {};
+let hideForMe = {};
 const emojiList = "😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😜 🤪 😝 😛 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶".split(" ");
 
 window.toggleTheme = function() {
@@ -89,13 +87,6 @@ window.login = async function() {
   document.getElementById('userSection').style.display = "block";
 };
 
-window.toggleReadReceipts = function() {
-  receiptOn = document.getElementById('readReceipts').checked;
-  document.querySelectorAll('.read-receipt').forEach(el => {
-    el.style.display = receiptOn ? "" : "none";
-  });
-};
-
 window.openChat = async function() {
   peerUsername = normalize(document.getElementById('chatName').value);
   if (!peerUsername) return alert("Enter friend's username!");
@@ -106,7 +97,6 @@ window.openChat = async function() {
   }
   peerPubKey = await importPubKey(peerSnap.val().pub);
 
-  // Unified session key coordination: only one key per chat; whoever is first alphabetically creates it
   let sessRef = db.ref('sessionkeys/' + chatName);
   let sessSnap = await sessRef.once('value');
   let sessData = sessSnap.val();
@@ -123,17 +113,11 @@ window.openChat = async function() {
   db.ref('chats/' + chatName).off();
   db.ref('chats/' + chatName).on('child_added', async function(snapshot) {
     await showMessage(chatName, snapshot.key, snapshot.val());
-    // For read receipts
-    if (snapshot.val().from && snapshot.val().from !== myUsername && (!snapshot.val().readby || !snapshot.val().readby[myUsername])) {
-      db.ref(`chats/${chatName}/${snapshot.key}/readby/${myUsername}`).set(true);
-    }
   });
-  // Live remove on delete everywhere
   db.ref('chats/' + chatName).on('child_removed', function(snapshot) {
     const box = document.getElementById(`msg-${snapshot.key}`);
     if (box) box.remove();
   });
-  // Live edit on everyone
   db.ref('chats/' + chatName).on('child_changed', async function(snapshot) {
     const box = document.getElementById(`msg-${snapshot.key}`);
     if (!box) return;
@@ -203,7 +187,6 @@ window.sendMessage = async function(chat) {
     ...enc,
     from: myUsername,
     starred: {},
-    readby: {[myUsername]: true},
     timestamp: Date.now()
   });
   inp.value = "";
@@ -234,14 +217,9 @@ async function showMessage(chat, msgKey, data) {
         <span class="star-btn" onclick="starMessage('${chat}','${msgKey}')" title="Starred">${data.starred&&data.starred[myUsername]?'★':'☆'}</span>
       </span>`;
   }
-  let receipt = "";
-  if (data.from === myUsername && receiptOn && data.readby) {
-    let peerSeen = Object.keys(data.readby).find(u => u !== myUsername);
-    receipt = peerSeen ? `<span class="read-receipt" style="color:#3259ff;">✔✔</span>` : `<span class="read-receipt" style="color:#bbb;">✔</span>`;
-  }
   let localTime = new Date(data.timestamp||0).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
   let time = `<span class="time-stamp">${localTime}</span>`;
-  div.innerHTML = `<span class="msg-name">${data.from}</span><span class="msg-bubble">${text}</span>${time}${actions}${receipt}`;
+  div.innerHTML = `<span class="msg-name">${data.from}</span><span class="msg-bubble">${text}</span>${time}${actions}`;
   box.appendChild(div); box.scrollTop = box.scrollHeight;
 
   db.ref(`chats/${chat}/${msgKey}`).on('value', function(snap) {
