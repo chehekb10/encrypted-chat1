@@ -278,6 +278,7 @@ window.editMessage = function(chat, msgKey) {
   const msgDiv = document.getElementById(`msg-${msgKey}`);
   if (!msgDiv) return;
   const bubble = msgDiv.querySelector('.msg-bubble');
+  if (!bubble) return; // Prevents error if bubble is missing
   const oldMsg = bubble.textContent;
   let finished = false;
   const inp = document.createElement("input");
@@ -292,6 +293,7 @@ window.editMessage = function(chat, msgKey) {
     if (e.key === "Enter") { finishEdit(msgDiv, chat, msgKey, inp.value); finished = true; }
   };
 };
+
 async function finishEdit(msgDiv, chat, msgKey, newText) {
   let newSessionKey = await generateSessionKey();
   let encKeyForMe = await encryptSessionKeyForPeer(newSessionKey, myKeyPair.publicKey);
