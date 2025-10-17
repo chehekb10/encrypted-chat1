@@ -182,29 +182,36 @@ window.sendMessage = async function(chat) {
   const inp = document.getElementById(`msgInput-${chat}`);
   if (!inp.value) return;
 
-  // ROTATE SESSION KEY: generate a new session key
+  // Generate rotating session key
   let newSessionKey = await generateSessionKey();
   let encKeyForMe = await encryptSessionKeyForPeer(newSessionKey, myKeyPair.publicKey);
   let encKeyForPeer = await encryptSessionKeyForPeer(newSessionKey, peerPubKey);
 
+  // Assign A/B fields based on lexicographic order
+  let sessionKeyFields = {};
+  if (myUsername < peerUsername) {
+    sessionKeyFields.sessionKeyForA = encKeyForMe;
+    sessionKeyFields.sessionKeyForB = encKeyForPeer;
+  } else {
+    sessionKeyFields.sessionKeyForA = encKeyForPeer;
+    sessionKeyFields.sessionKeyForB = encKeyForMe;
+  }
+
   let plain = inp.value;
   let enc = await encryptMessage(plain, newSessionKey);
 
-  // Store both encrypted keys with the message
   await db.ref('chats/' + chat).push({
     ...enc,
+    ...sessionKeyFields,
     from: myUsername,
     starred: {},
-    timestamp: Date.now(),
-    sessionKeyForA: myUsername < peerUsername ? encKeyForMe : encKeyForPeer,
-    sessionKeyForB: myUsername < peerUsername ? encKeyForPeer : encKeyForMe
+    timestamp: Date.now()
   });
 
-  // locally update for next message
   sessionKey = newSessionKey;
-
   inp.value = "";
 };
+
 
 
 
