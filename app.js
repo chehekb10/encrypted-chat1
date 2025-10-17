@@ -21,26 +21,18 @@ let currentTheme = "light";
 const allReactions = ["👍", "❤️", "😂", "😮"];
 const emojiList = "😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😜 🤪 😝 😛 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶".split(" ");
 
-function normalize(str) { return str.trim().toLowerCase(); }
-
+// iOS style theme toggle
 window.toggleTheme = function() {
-  const root = document.body;
   const btn = document.getElementById("themeBtn");
   if (currentTheme === "light") {
-    root.style.background = "linear-gradient(110deg,#232638 40%,#123f36 100%)";
-    root.style.color = "#eee";
-    document.getElementById("chatApp").style.background = "#26293d";
-    [...document.querySelectorAll(".chat-window, input, .selector, .chat-box, header")].forEach(el => {if(el) el.style.background = "#232638";});
-    btn.classList.add("light");
-    btn.innerText = "🌞";
+    document.body.classList.add('dark');
+    btn.classList.add('light');
+    btn.innerText = "☀️";
     currentTheme = "dark";
   } else {
-    root.style.background = "";
-    root.style.color = "";
-    document.getElementById("chatApp").style.background = "";
-    [...document.querySelectorAll(".chat-window, input, .selector, .chat-box, header")].forEach(el => {if(el) el.style.background = "";});
-    btn.classList.remove("light");
-    btn.innerText = "🌚";
+    document.body.classList.remove('dark');
+    btn.classList.remove('light');
+    btn.innerText = "🌙";
     currentTheme = "light";
   }
 };
@@ -49,7 +41,7 @@ window.updateChatOption = function() {
   const chatType = document.getElementById('chatType').value;
   const chatName = document.getElementById('chatName');
   const openChatBtn = document.getElementById('openChatBtn');
-  chatName.placeholder = chatType === "personal" ? "Enter friend's username..." : "Enter group name...";
+  chatName.placeholder = chatType === "personal" ? "Type friend's username..." : "Type group name...";
   openChatBtn.textContent = chatType === "personal" ? "Start Personal Chat" : "Join Group Chat";
 };
 
@@ -88,18 +80,19 @@ window.openChat = function() {
   chatWin.className = "chat-window";
   chatWin.id = `chat-${chatName}`;
   chatWin.innerHTML = `
-    <div class="chat-header"><span style="font-size:1.14em;">${chatName}</span></div>
+    <div class="chat-header"><span>${chatName}</span></div>
     <div class="typing-indicator" id="typing-${chatName}" style="display:none;"></div>
     <div class="chat-box" id="chatBox-${chatName}"></div>
-    <div class="input-row">
+    <div class="input-row" style="margin-top:.6em;">
       <input type="text" placeholder="Type a message..." id="msgInput-${chatName}" oninput="sendTyping('${chatName}')">
       <button type="button" class="emoji-btn" onclick="toggleEmojiPicker('${chatName}')">😀</button>
-      <button type="button" class="send-btn" onclick="sendMessage('${chatName}')">Send</button>
+      <button type="button" class="main-btn" style="width:5.7em;font-size:1em;padding:.4em 1em;" onclick="sendMessage('${chatName}')">Send</button>
     </div>
     <div class="emoji-picker" id="emojiPicker-${chatName}" style="display:none;"></div>
   `;
   document.getElementById('chatWindows').appendChild(chatWin);
 
+  // Emoji picker
   const pickerDiv = document.getElementById(`emojiPicker-${chatName}`);
   emojiList.forEach(e => {
     const btn = document.createElement("button");
@@ -147,13 +140,14 @@ window.switchChat = function(chatName) {
 
 window.toggleEmojiPicker = function(chat) {
   const pickerDiv = document.getElementById(`emojiPicker-${chat}`);
-  if (pickerDiv) pickerDiv.style.display = pickerDiv.style.display === "none" ? "flex" : "none";
+  pickerDiv.style.display = pickerDiv.style.display === "none" ? "flex" : "none";
 };
 window.insertEmoji = function(chat, emoji) {
   const inp = document.getElementById(`msgInput-${chat}`);
   inp.value += emoji;
   document.getElementById(`emojiPicker-${chat}`).style.display = "none"; inp.focus();
 };
+
 window.sendMessage = function(chat) {
   const inp = document.getElementById(`msgInput-${chat}`);
   if (!inp.value) return;
@@ -173,6 +167,7 @@ window.sendMessage = function(chat) {
   inp.value = "";
   db.ref('typing/' + chat).set({user: myUsername, typing:false});
 };
+
 window.sendTyping = function(chat) {
   db.ref('typing/' + chat).set({user: myUsername, typing:true});
   if (typingTimeouts[chat]) clearTimeout(typingTimeouts[chat]);
@@ -181,6 +176,7 @@ window.sendTyping = function(chat) {
   }, 1200);
 };
 
+function normalize(str) { return str.trim().toLowerCase(); }
 function makeSessionKey(chat) { return btoa(chat + "_secret"); }
 function encryptMessage(text, key) {
   return btoa(unescape(encodeURIComponent(text)).split('').map((c, i) =>
@@ -201,7 +197,6 @@ window.showMessage = function(chat, msgKey, data) {
   div.id = `msg-${msgKey}`;
   let content = `<span class="msg-bubble">${decryptMessage(data.message, makeSessionKey(chat))}</span>`;
 
-  // WhatsApp-style receipt logic for sent messages only
   let receipt = "";
   let isPersonalChat = chat.includes("_");
   let recipients = getChatUsers(chat, data, true);
@@ -220,7 +215,7 @@ window.showMessage = function(chat, msgKey, data) {
     if (!bothDelivered) {
       receipt = `<span class="read-receipt" style="color:#bbb">✔</span>`;
     } else if (bothSeen) {
-      receipt = `<span class="read-receipt" style="color:#0377ee">✔✔</span>`;
+      receipt = `<span class="read-receipt" style="color:#1996ff">✔✔</span>`;
     } else {
       receipt = `<span class="read-receipt" style="color:#bbb">✔✔</span>`;
     }
@@ -235,7 +230,7 @@ window.showMessage = function(chat, msgKey, data) {
         <button class="action-btn" onclick="editMessage('${chat}','${msgKey}')">Edit</button>
         <button class="action-btn" onclick="deleteForMe('${chat}','${msgKey}')">Delete for Me</button>
         <button class="action-btn" onclick="deleteMessage('${chat}','${msgKey}')">Delete for Everyone</button>
-        <span class="star-btn ${starredClass}" onclick="starMessage('${chat}','${msgKey}')" style="font-size:1.7em;margin-left:.12em;cursor:pointer;" title="Starred">${data.starred&&data.starred[myUsername]?'★':'☆'}</span>
+        <span class="star-btn ${starredClass}" onclick="starMessage('${chat}','${msgKey}')" title="Starred">${data.starred&&data.starred[myUsername]?'★':'☆'}</span>
       </span>`;
   }
 
@@ -277,14 +272,13 @@ window.updateEditedMessage = function(chat, msgKey, data) {
   if (!el) return;
   el.querySelector('.msg-bubble').textContent = decryptMessage(data.message, makeSessionKey(chat));
 };
-
 window.editMessage = function(chat, msgKey) {
   const msgDiv = document.getElementById(`msg-${msgKey}`);
   const bubble = msgDiv.querySelector('.msg-bubble');
   const oldMsg = bubble.textContent;
   let finished = false;
   const inp = document.createElement("input");
-  inp.type = "text"; inp.style = "width:80%"; inp.value = oldMsg;
+  inp.type = "text"; inp.style = "width:83%"; inp.value = oldMsg;
   bubble.replaceWith(inp);
   inp.focus();
   inp.onblur = function() {
@@ -350,7 +344,6 @@ function getChatUsers(chat, data, includeReaders) {
   if (includeReaders && data.readby) Object.keys(data.readby).forEach(u => users.add(u));
   return Array.from(users);
 }
-
 window.onload = function() { updateChatOption(); };
 window.addEventListener('click', function(e) {
   openChats.forEach(function(chat){
