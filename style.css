@@ -12,11 +12,11 @@ body {
   text-align: center;
 }
 .theme-btn {
-  background: #233366;
+  background: #012357;
   color: #fff;
   font-size: 2.5em;
   border-radius: 2.6em;
-  border: none;
+  border: 3px solid #547af7;
   padding: .17em 0.8em;
   cursor: pointer;
   box-shadow: 0 2px 15px #536eefb2;
@@ -27,13 +27,13 @@ body {
   justify-content: center;
 }
 .theme-btn.light {
-  background: #f7f8fa;
+  background: #eee;
   color: #152544;
 }
 .chat-outer {
   max-width: 430px;
   margin: 60px auto 0 auto;
-  background: #22305c;
+  background: #233366;
   border-radius: 1.2em;
   box-shadow: 0 10px 55px 3px #011a4877;
   min-height: 700px;
@@ -43,9 +43,9 @@ body {
 }
 header {
   text-align: center;
-  background: #19264c;
+  background: #1a2447;
   border-radius: 1.2em 1.2em 0 0;
-  border-bottom: 2.3px solid #2b3e6f;
+  border-bottom: 2.3px solid #19264c;
   padding: 1.5em 0 .8em 0;
 }
 header h1 {
@@ -63,53 +63,53 @@ main {
 }
 input[type=text], .selector {
   font-size: 1.15em;
-  padding: .8em 1.1em;
-  border: 2.1px solid #324c80;
+  padding: 0.9em 0.8em;
+  border: 2.2px solid #294786;
   border-radius: 1.35em;
   outline: none;
   width: 100%;
   margin: .25em 0 1.19em 0;
-  background: #19264c;
-  color: #f7f8fa;
+  background: #142042;
+  color: #e6ebf8;
   transition: border .13s;
   text-align: center;
 }
 input[type="text"]::placeholder {
   text-align: center;
-  color: #6170a6;
-  opacity: .85;
+  color: #6b7bb3;
+  opacity: .88;
 }
 input[type=text]:focus {
-  border: 2.8px solid #59cdf5;
+  border: 2.8px solid #417bff;
 }
 .selector {
   margin-bottom: 1.18em;
   font-size: 1.16em;
-  background: #1e2750;
+  background: #1a2447;
   border: 2.1px solid #183153;
   color: #b6c7eb;
   text-align:center;
 }
 #chatTitle {
   margin-bottom: .44em;
-  color: #c6deff;
+  color: #d2e2fa;
   letter-spacing: .04em;
 }
 .main-btn {
-  background: linear-gradient(90deg,#355a99 0%,#306fd0 100%);
-  color: #f8faff;
+  background: #0c2867;
+  color: #e6ebf8;
   border: none;
   border-radius: 1.1em;
   font-size: 1.18em;
   padding: .8em 2em;
   cursor: pointer;
   margin-bottom: 1.18em;
-  box-shadow: 0 2px 15px #0b234764;
+  box-shadow: 0 2px 13px #15184444;
   font-weight: 600;
   letter-spacing: .02em;
 }
 .main-btn:hover {
-  background: linear-gradient(90deg,#244e8b 0%,#1c4e9f 100%);
+  background: #1e3372;
 }
 .read-opt {
   margin-bottom: 1.07em;
@@ -125,30 +125,30 @@ input[type=text]:focus {
   justify-content: center;
 }
 .chat-tab {
-  background: #253668;
-  border: 2px solid #4d77e2a7;
+  background: #283966;
+  border: 2px solid #4562b4a7;
   border-radius: 1.13em;
   padding: 0.52em 1.61em;
   cursor: pointer;
   font-weight: 700;
   font-size: 1.18em;
-  color: #bddbff;
+  color: #bcd7ff;
   box-shadow: 0 1px 7px #0f1f4637;
   letter-spacing: .01em;
 }
 .chat-tab.active {
-  background: #4573cc;
+  background: #3456ab;
   color: #fff;
 }
 .chat-window {
   display: none;
   border-radius: 1.1em;
-  background: #162144;
+  background: #121a36;
   min-height: 325px;
   max-height: 480px;
   padding: 1.7em .7em .6em .7em;
   margin-bottom: 0.4em;
-  box-shadow: 0 2px 16px #3643771d;
+  box-shadow: 0 2px 16px #1e37661d;
   position: relative;
   animation: fadein .23s;
 }
@@ -161,16 +161,16 @@ input[type=text]:focus {
   color: #b6c7eb;
   text-align: center;
   margin-bottom: .52em;
-  background: #283666;
-  border-radius: 1.13em;
-  box-shadow: 0 1px 6px #011a482b;
+  background: #213a70;
+  border-radius: .85em;
+  box-shadow: 0 1px 6px #0122531c;
   padding: .41em 0 .58em 0;
   letter-spacing: .09em;
 }
 .typing-indicator {
   text-align: center;
   font-size: 1.09em;
-  color: #4db8ff;
+  color: #317dcd;
   font-weight: 600;
   height: 24px;
   margin-bottom: .33em;
@@ -181,39 +181,38 @@ input[type=text]:focus {
   overflow-y: auto;
   width: 97%;
   margin: 0 auto 1.13em auto;
-  background: #162144;
+  background: #141b32;
   border-radius: 1.07em;
-  border: 1.2px solid #395b9060;
-  text-align: center;
+  border: 1.2px solid #23305a80;
   padding-bottom: .6em;
   padding-top: .25em;
-  box-shadow: 0 2px 13px #004b85cc;
+  box-shadow: 0 2px 13px #07398aec;
   display: flex;
   flex-direction: column;
   gap: 0.65em;
+  align-items: stretch;
 }
 .message {
   display: flex;
   flex-direction: column;
-  max-width: 78%;
-  min-width: 110px;
-  margin:0 .5em;
+  max-width: 68%;
+  min-width: 90px;
+  margin: .12em;
   align-items: flex-start;
   position: relative;
-  background: #26407f;
+  background: #2a3862;
   box-shadow: 0 2px 6px #011a4857;
-  border-radius:1.1em 1.2em 1.2em 1.9em;
+  border-radius: 1.1em 1.4em 1.5em 1.4em;
   padding: .62em 1.15em .6em .93em;
-  margin-bottom: .32em;
   align-self: flex-start;
 }
 .message.me {
   align-items: flex-end;
   align-self: flex-end;
-  background: #07327d;
-  border-radius: 1.2em 1.1em 1.9em 1.2em;
+  background: #134088;
+  border-radius: 1.4em 1.1em 1.5em 1.5em;
   color: #fffefa;
-  box-shadow: 0 2px 11px #1185e04e;
+  box-shadow: 0 2px 11px #0b5cc84e;
 }
 .msg-bubble {
   font-size: 1.18em;
@@ -255,9 +254,9 @@ input[type=text]:focus {
   justify-content: flex-start;
 }
 .action-btn {
-  background: #092458;
+  background: #0d2a53;
   border: none;
-  color: #51c7fa;
+  color: #7ed5f8;
   font-size: 0.99em;
   cursor: pointer;
   padding: .21em .62em;
@@ -266,13 +265,13 @@ input[type=text]:focus {
   transition: background .22s;
 }
 .action-btn:hover {
-  background: #11468d;
+  background: #2a79c7;
   color: #ffe070;
 }
 .read-receipt {
   font-size: 1.08em;
   margin-left: 0.42em;
-  color: #6fc8ff;
+  color: #52b7fb;
   vertical-align: middle;
   font-weight: 700;
   letter-spacing: 2.2px;
@@ -285,7 +284,7 @@ input[type=text]:focus {
   align-items: center;
 }
 .react-btn {
-  background: #eee5f3;
+  background: #3a4b89;
   border-radius: 1.2em;
   font-size: 1.21em;
   border: none;
@@ -293,17 +292,17 @@ input[type=text]:focus {
   padding: .19em .59em;
   cursor: pointer;
   opacity: .91;
-  box-shadow: 0 0 5px #214fcc24;
-  color: #233366;
+  box-shadow: 0 0 5px #00276324;
+  color: #fff;
 }
 .react-btn.selected, .react-btn:hover {
-  background: #0957b5;
+  background: #417bff;
   color: #fff;
 }
 .time-stamp {
   display: block;
   font-size: .91em;
-  color: #6898e0;
+  color: #77b4ff;
   opacity: .93;
   margin-top: .13em;
   margin-left: .8em;
