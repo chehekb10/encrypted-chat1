@@ -56,7 +56,6 @@ async function decryptMessage(obj, sessionKey) {
 let myUsername = "", peerUsername = "", sessionKey = null;
 let myKeyPair = null, myPubB64 = null, myPrivJwk = null, peerPubKey = null;
 let receiptOn = true, hideForMe = {};
-const allReactions = ["👍", "❤️", "😂", "😮"];
 const emojiList = "😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😜 🤪 😝 😛 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶".split(" ");
 
 window.toggleTheme = function() {
@@ -112,10 +111,8 @@ window.openChat = async function() {
   let sessSnap = await sessRef.once('value');
   let sessData = sessSnap.val();
   if (sessData && sessData.encrypted && sessData.who !== myUsername) {
-    // Use reasoned key
     sessionKey = await decryptSessionKeyForMe(sessData.encrypted, myKeyPair.privateKey);
   } else {
-    // Create it if it's not there or if I am the session creator
     sessionKey = await generateSessionKey();
     let encKey = await encryptSessionKeyForPeer(sessionKey, peerPubKey);
     await sessRef.set({ encrypted: encKey, who: myUsername });
@@ -145,7 +142,7 @@ function setupChatWindow(chatName) {
     <div class="input-row" style="margin-top:.6em;">
       <input type="text" style="width:73%;display:inline-block;vertical-align:middle;" placeholder="Type a message..." id="msgInput-${chatName}">
       <button class="main-btn" style="width:23%;font-size:1em;padding:.45em 1em;display:inline-block;vertical-align:middle;" onclick="sendMessage('${chatName}')">Send</button>
-      <button class="emoji-btn" style="background:#f6f6f6;border:none;" onclick="toggleEmojiPicker('${chatName}')">😀</button>
+      <button class="emoji-btn" style="font-size:2.1em;background:#f6f6f6;border:none;" onclick="toggleEmojiPicker('${chatName}')">😀</button>
       <div class="emoji-picker" id="emojiPicker-${chatName}" style="display:none;"></div>
     </div>
   `;
@@ -185,7 +182,6 @@ window.sendMessage = async function(chat) {
   await db.ref('chats/' + chat).push({
     ...enc,
     from: myUsername,
-    reactions: {},
     starred: {},
     readby: {[myUsername]: true},
     timestamp: Date.now()
@@ -204,18 +200,11 @@ async function showMessage(chat, msgKey, data) {
 
   const box = document.getElementById(`chatBox-${chat}`);
   if (!box) return;
-  // Skip if "deleted for me" in current session
   if (hideForMe[chat] && hideForMe[chat][msgKey]) return;
 
   const div = document.createElement('div');
   div.className = "message" + (data.from === myUsername ? " me" : "");
   div.id = `msg-${msgKey}`;
-  let reactRow = `<span class="reaction-row" id="reactrow-${msgKey}">`;
-  allReactions.forEach(re => {
-    let selClass = data.reactions && data.reactions[re] && data.reactions[re][myUsername] ? "selected" : "";
-    reactRow += `<button class="react-btn ${selClass}" data-emoji="${re}" onclick="reactToMessage('${chat}','${msgKey}','${re}')">${re}${renderReactionCount(data, re)}</button>`;
-  });
-  reactRow += '</span>';
   let actions = "";
   if (data.from === myUsername) {
     actions = `<span class="msg-actions">
@@ -232,21 +221,12 @@ async function showMessage(chat, msgKey, data) {
   }
   let localTime = new Date(data.timestamp||0).toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
   let time = `<span class="time-stamp">${localTime}</span>`;
-  div.innerHTML = `<span class="msg-name">${data.from}</span><span class="msg-bubble">${text}</span>${time}${actions}${reactRow}${receipt}`;
+  div.innerHTML = `<span class="msg-name">${data.from}</span><span class="msg-bubble">${text}</span>${time}${actions}${receipt}`;
   box.appendChild(div); box.scrollTop = box.scrollHeight;
 
-  // --- Live update for reactions and star button ---
   db.ref(`chats/${chat}/${msgKey}`).on('value', function(snap) {
     const d = snap.val();
     if (!d) return;
-    allReactions.forEach(re => {
-      const btn = document.querySelector(`#reactrow-${msgKey} .react-btn[data-emoji='${re}']`);
-      if (btn) {
-        let selClass = d.reactions && d.reactions[re] && d.reactions[re][myUsername] ? "selected" : "";
-        btn.className = "react-btn" + (selClass ? " selected" : "");
-        btn.innerHTML = re + (d.reactions && d.reactions[re] ? ` (${Object.keys(d.reactions[re]).length})` : "");
-      }
-    });
     const starBtn = document.querySelector(`#msg-${msgKey} .star-btn`);
     if (starBtn) {
       if (d.starred && d.starred[myUsername]) {
@@ -260,16 +240,6 @@ async function showMessage(chat, msgKey, data) {
   });
 }
 
-window.reactToMessage = function(chat, msgKey, emoji) {
-  const ref = db.ref(`chats/${chat}/${msgKey}/reactions/${emoji}/${myUsername}`);
-  ref.once('value', function(snap){
-    if(snap.val()) ref.remove();
-    else ref.set(true);
-  });
-};
-function renderReactionCount(data, emoji) {
-  return data.reactions && data.reactions[emoji] ? ` (${Object.keys(data.reactions[emoji]).length})`:"";
-}
 window.editMessage = function(chat, msgKey) {
   const msgDiv = document.getElementById(`msg-${msgKey}`);
   if (!msgDiv) return;
