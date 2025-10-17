@@ -154,7 +154,8 @@ body.dark .chat-header { color:#ecd;}
   padding-top: .25em;
 }
 body.dark .chat-box { background:#22284b; border-color:#121a36;}
-.message { display:flex; flex-direction:column; max-width:68%;
+.message { 
+  display:flex; flex-direction:column; max-width:68%;
   min-width:90px; margin:.16em 0; align-items:flex-start;
   position:relative; background:#e5e7ff; color:#232652;
   border-radius:1.06em 1.6em 1.5em 1.2em; padding:.71em 1.11em .61em .99em;

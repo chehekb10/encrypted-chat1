@@ -1,4 +1,5 @@
-// Firebase initialization
+// Firebase initialization and E2EE helpers remain unchanged
+
 const firebaseConfig = {
   apiKey: "AIzaSyAXPwge9me10YI38WFSIOQ1Lr-IzKrbUHA",
   authDomain: "pted-chat1.firebaseapp.com",
@@ -11,7 +12,6 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// ----- E2EE Utility -----
 function bufToB64(buffer) { return btoa(String.fromCharCode.apply(null, new Uint8Array(buffer))); }
 function b64ToBuf(str) { return Uint8Array.from(atob(str), c => c.charCodeAt(0)); }
 async function generateKeyPair() {
@@ -36,9 +36,7 @@ async function importPubKey(b64) {
   );
 }
 async function generateSessionKey() {
-  return await window.crypto.subtle.generateKey(
-    { name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]
-  );
+  return await window.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
 }
 async function exportSessionKey(key) {
   let raw = await window.crypto.subtle.exportKey("raw", key); return bufToB64(raw);
@@ -76,7 +74,7 @@ async function decryptMessage(obj, sessionKey) {
 // ----- App State -----
 let myUsername = "", peerUsername = "", sessionKey = null;
 let myKeyPair = null, myPubB64 = null, myPrivJwk = null, peerPubKey = null;
-let receiptOn = true, openChats = [], hideForMe = {}, typingTimeouts = {};
+let receiptOn = true, hideForMe = {};
 const allReactions = ["👍", "❤️", "😂", "😮"];
 const emojiList = "😀 😃 😄 😁 😆 😅 😂 🤣 😊 😇 🙂 🙃 😉 😌 😍 🥰 😘 😗 😙 😚 😋 😜 🤪 😝 😛 🤑 🤗 🤭 🤫 🤔 🤐 🤨 😐 😑 😶".split(" ");
 
@@ -128,7 +126,6 @@ window.openChat = async function() {
   }
   peerPubKey = await importPubKey(peerSnap.val().pub);
 
-  // SESSION KEY
   let sessRef = db.ref('sessionkeys/' + chatName + '/' + myUsername);
   let sessSnap = await sessRef.once('value');
   if (sessSnap.exists() && sessSnap.val().encrypted && sessSnap.val().who == peerUsername) {
@@ -143,6 +140,10 @@ window.openChat = async function() {
   db.ref('chats/' + chatName).off();
   db.ref('chats/' + chatName).on('child_added', async function(snapshot) {
     await showMessage(chatName, snapshot.key, snapshot.val());
+    // Add message receipt for instant updates
+    if (snapshot.val().from && snapshot.val().from !== myUsername && (!snapshot.val().readby || !snapshot.val().readby[myUsername])) {
+      db.ref(`chats/${chatName}/${snapshot.key}/readby/${myUsername}`).set(true);
+    }
   });
 };
 
@@ -217,6 +218,9 @@ async function showMessage(chat, msgKey, data) {
 
   const box = document.getElementById(`chatBox-${chat}`);
   if (!box) return;
+  // Skip if "deleted for me" in current session
+  if (hideForMe[chat] && hideForMe[chat][msgKey]) return;
+
   const div = document.createElement('div');
   div.className = "message" + (data.from === myUsername ? " me" : "");
   div.id = `msg-${msgKey}`;
@@ -258,6 +262,7 @@ function renderReactionCount(data, emoji) {
 }
 window.editMessage = function(chat, msgKey) {
   const msgDiv = document.getElementById(`msg-${msgKey}`);
+  if (!msgDiv) return;
   const bubble = msgDiv.querySelector('.msg-bubble');
   const oldMsg = bubble.textContent;
   let finished = false;
@@ -300,6 +305,7 @@ window.starMessage = function(chat,msgKey){
     else ref.set(firebase.database.ServerValue.TIMESTAMP);
   });
 };
+
 window.onload = function() {
   document.getElementById("chatTabs").innerHTML = "";
   document.getElementById("chatWindows").innerHTML = "";
